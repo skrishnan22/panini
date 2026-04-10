@@ -17,5 +17,15 @@ dist/
 .vscode/
 .idea/
 
+# Xcode
+*.xcodeproj/
+*.xcworkspace/
+DerivedData/
+*.xcuserstate
+*.xcuserdatad
+xcuserdata/
+.build/
+.swiftpm/
+
 # Environment
 .env
