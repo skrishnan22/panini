@@ -1,0 +1,37 @@
+name: Panini
+options:
+  xcodeVersion: "15.0"
+  postGenCommand: bash scripts/downgrade_project_format.sh
+  deploymentTarget:
+    macOS: "14.0"
+schemes:
+  Panini:
+    build:
+      targets:
+        Panini: all
+        PaniniTests: [test]
+    test:
+      targets:
+        - PaniniTests
+targets:
+  Panini:
+    type: application
+    platform: macOS
+    sources:
+      - Panini
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.panini.macos
+        SWIFT_VERSION: 5.10
+    info:
+      path: Panini/Resources/Info.plist
+  PaniniTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - PaniniTests
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+    dependencies:
+      - target: Panini
