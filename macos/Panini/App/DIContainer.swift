@@ -109,12 +109,16 @@ final class DIContainer {
             let backend = settingsViewModel.backendChoice == .cloud ? "cloud" : "mlx"
             let modelID = settingsViewModel.selectedModelID
             let cloudKey = settingsViewModel.backendChoice == .cloud ? settingsViewModel.apiKey : nil
-            try? processManager.restart(
-                backend: backend,
-                modelID: modelID,
-                cloudURL: cloudKey != nil ? "https://api.vercel.ai" : nil,
-                cloudKey: cloudKey
-            )
+            do {
+                try processManager.restart(
+                    backend: backend,
+                    modelID: modelID,
+                    cloudURL: cloudKey != nil ? "https://api.vercel.ai" : nil,
+                    cloudKey: cloudKey
+                )
+            } catch {
+                AppLogger.server.error("Server restart failed: \(error.localizedDescription, privacy: .public)")
+            }
         }
 
         settingsViewModel.onHotkeysChanged = {}  // Wired in AppDelegate

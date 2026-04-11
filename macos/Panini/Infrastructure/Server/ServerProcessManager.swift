@@ -79,6 +79,12 @@ final class ServerProcessManager: ServerControlling {
     func restart(backend: String, modelID: String, cloudURL: String?, cloudKey: String?) throws {
         stop()
 
+        guard FileManager.default.fileExists(atPath: config.serverEntryWorkingDirectory.path) else {
+            throw PaniniError.backendRequestFailed(
+                "Server directory not found at '\(config.serverEntryWorkingDirectory.path)'. Set PANINI_SERVER_DIR in the Xcode scheme environment."
+            )
+        }
+
         let process = makeProcess()
         process.executableURL = URL(fileURLWithPath: config.pythonExecutablePath)
 
