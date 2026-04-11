@@ -7,7 +7,7 @@ private final class MockServerManager: ServerControlling {
 
     func startIfNeeded() throws {
         starts += 1
-        if shouldThrow { throw GrammarAIError.serverUnavailable }
+        if shouldThrow { throw PaniniError.serverUnavailable }
     }
 
     func stop() {}
@@ -23,7 +23,7 @@ private struct MockAPIClient: CorrectionServing {
 
     func correct(text: String, mode: CorrectionMode, preset: String) async throws -> CorrectionResult {
         guard case let .single(result) = response else {
-            throw GrammarAIError.backendRequestFailed("Expected a single correction payload.")
+            throw PaniniError.backendRequestFailed("Expected a single correction payload.")
         }
         return result
     }
@@ -60,7 +60,7 @@ private final class ControllableAPIClient: CorrectionServing {
     func correct(text: String, mode: CorrectionMode, preset: String) async throws -> CorrectionResult {
         let response = try await correct(text: text, mode: mode, preset: preset, avoidOutputs: [])
         guard case let .single(result) = response else {
-            throw GrammarAIError.backendRequestFailed("Expected a single correction payload.")
+            throw PaniniError.backendRequestFailed("Expected a single correction payload.")
         }
         return result
     }
@@ -186,7 +186,7 @@ private final class MockTextReader: TextReader {
 
     func captureSession(targetProcessIdentifier: pid_t?) throws -> TextEditingSession {
         guard !sessions.isEmpty else {
-            throw GrammarAIError.selectionUnavailable
+            throw PaniniError.selectionUnavailable
         }
 
         let session = sessions.removeFirst()
@@ -231,13 +231,13 @@ private final class MockTextWriter: TextWriter {
     var beforeWrite: (() -> Void)?
 
     func replaceSelection(with text: String) throws {
-        if shouldFail { throw GrammarAIError.writeFailed }
+        if shouldFail { throw PaniniError.writeFailed }
         beforeWrite?()
         writes.append(text)
     }
 
     func replaceSelection(in session: TextEditingSession, with text: String) throws {
-        if shouldFail { throw GrammarAIError.writeFailed }
+        if shouldFail { throw PaniniError.writeFailed }
         beforeWrite?()
         sessionWrites.append(text)
     }
@@ -249,7 +249,7 @@ private final class MockClipboardInserter: ClipboardInserting {
     var targetProcessIdentifiers: [pid_t?] = []
 
     func pasteReplacingSelection(with text: String, targetProcessIdentifier: pid_t?) throws {
-        if shouldFail { throw GrammarAIError.writeFailed }
+        if shouldFail { throw PaniniError.writeFailed }
         writes.append(text)
         targetProcessIdentifiers.append(targetProcessIdentifier)
     }
@@ -454,9 +454,9 @@ final class CorrectionCoordinatorTests: XCTestCase {
             dependencies.coordinator.cancelReview()
         }
 
-        await waitUntil { dependencies.coordinator.activeReviewSession?.phase == .failed(message: GrammarAIError.serverUnavailable.localizedDescription ?? "") }
+        await waitUntil { dependencies.coordinator.activeReviewSession?.phase == .failed(message: PaniniError.serverUnavailable.localizedDescription ?? "") }
 
-        XCTAssertEqual(dependencies.reviewPresenter.presented?.phase, .failed(message: GrammarAIError.serverUnavailable.localizedDescription ?? ""))
+        XCTAssertEqual(dependencies.reviewPresenter.presented?.phase, .failed(message: PaniniError.serverUnavailable.localizedDescription ?? ""))
         XCTAssertTrue(dependencies.toastPresenter.messages.isEmpty)
     }
 
@@ -489,7 +489,7 @@ final class CorrectionCoordinatorTests: XCTestCase {
 
         await waitUntil { dependencies.coordinator.activeReviewSession?.phase == .loading }
         await waitUntil { apiClient.hasPendingRequest }
-        apiClient.failNext(with: GrammarAIError.backendRequestFailed("Backend returned status 500."))
+        apiClient.failNext(with: PaniniError.backendRequestFailed("Backend returned status 500."))
         await waitUntil { dependencies.coordinator.activeReviewSession?.phase == .failed(message: "Backend returned status 500.") }
 
         let sessionBeforeRetry = dependencies.coordinator.activeReviewSession
@@ -662,7 +662,7 @@ final class CorrectionCoordinatorTests: XCTestCase {
         await coordinator.runAutofix()
 
         XCTAssertTrue(undo.pushed.isEmpty)
-        XCTAssertEqual(toastPresenter.messages.last, GrammarAIError.writeFailed.localizedDescription)
+        XCTAssertEqual(toastPresenter.messages.last, PaniniError.writeFailed.localizedDescription)
     }
 
     func testApplyReviewDismissesPanelAndReactivatesOriginalAppBeforeWriting() async {
@@ -789,7 +789,7 @@ final class CorrectionCoordinatorTests: XCTestCase {
 
         XCTAssertTrue(undo.pushed.isEmpty)
         XCTAssertNotNil(coordinator.activeReviewSession)
-        XCTAssertEqual(toastPresenter.messages.last, GrammarAIError.writeFailed.localizedDescription)
+        XCTAssertEqual(toastPresenter.messages.last, PaniniError.writeFailed.localizedDescription)
     }
 
     func testRunActionWithVariantsSelectsRecommendedOptionByDefault() async throws {
@@ -884,7 +884,7 @@ final class CorrectionCoordinatorTests: XCTestCase {
 
         XCTAssertNil(coordinator.activeReviewSession)
         XCTAssertEqual(reviewPresenter.dismisses, 1)
-        XCTAssertEqual(toastPresenter.messages.last, GrammarAIError.selectionUnavailable.localizedDescription)
+        XCTAssertEqual(toastPresenter.messages.last, PaniniError.selectionUnavailable.localizedDescription)
     }
 
     private func makeDependencies(

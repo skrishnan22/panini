@@ -22,6 +22,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.panini.macos
+        PRODUCT_MODULE_NAME: GrammarAI
         SWIFT_VERSION: 5.10
     info:
       path: Panini/Resources/Info.plist

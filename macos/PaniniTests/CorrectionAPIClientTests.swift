@@ -140,7 +140,7 @@ final class CorrectionAPIClientTests: XCTestCase {
             _ = try await client.correct(text: "x", mode: .review, preset: "fix", avoidOutputs: [])
             XCTFail("Expected error")
         } catch {
-            XCTAssertTrue(error is GrammarAIError)
+            XCTAssertTrue(error is PaniniError)
         }
     }
 }
