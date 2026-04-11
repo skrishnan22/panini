@@ -6,6 +6,7 @@ public enum PaniniError: LocalizedError {
     case accessibilityPermissionMissing
     case serverUnavailable
     case backendRequestFailed(String)
+    case keychainError(OSStatus)
 
     public var errorDescription: String? {
         switch self {
@@ -19,6 +20,8 @@ public enum PaniniError: LocalizedError {
             return "Local Panini server is unavailable."
         case let .backendRequestFailed(message):
             return message
+        case let .keychainError(status):
+            return "Keychain operation failed with status: \(status)."
         }
     }
 }
