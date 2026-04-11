@@ -16,6 +16,7 @@ extension Process: ProcessLaunching {}
 protocol ServerControlling: AnyObject {
     func startIfNeeded() throws
     func stop()
+    func restart(backend: String, modelID: String, cloudURL: String?, cloudKey: String?) throws
 }
 
 final class ServerProcessManager: ServerControlling {
@@ -73,5 +74,38 @@ final class ServerProcessManager: ServerControlling {
             process.terminate()
         }
         self.process = nil
+    }
+
+    func restart(backend: String, modelID: String, cloudURL: String?, cloudKey: String?) throws {
+        stop()
+
+        let process = makeProcess()
+        process.executableURL = URL(fileURLWithPath: config.pythonExecutablePath)
+
+        var args = [
+            "-m", config.serverModule,
+            "--host", config.serverHost,
+            "--port", "\(config.serverPort)",
+            "--backend", backend,
+            "--model", modelID,
+        ]
+
+        if backend == "cloud", let cloudURL, let cloudKey {
+            args.append(contentsOf: ["--cloud-url", cloudURL, "--cloud-key", cloudKey])
+        }
+
+        process.arguments = args
+        process.currentDirectoryURL = config.serverEntryWorkingDirectory
+
+        var env = ProcessInfo.processInfo.environment
+        env["PYTHONUNBUFFERED"] = "1"
+        process.environment = env
+
+        AppLogger.server.info(
+            "Restarting server: backend=\(backend, privacy: .public) model=\(modelID, privacy: .public)"
+        )
+
+        try process.run()
+        self.process = process
     }
 }

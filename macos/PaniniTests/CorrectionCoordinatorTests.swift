@@ -11,6 +11,8 @@ private final class MockServerManager: ServerControlling {
     }
 
     func stop() {}
+
+    func restart(backend: String, modelID: String, cloudURL: String?, cloudKey: String?) throws {}
 }
 
 private struct MockHealthClient: ServerHealthChecking {

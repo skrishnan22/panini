@@ -11,6 +11,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
         registerHotkeys()
 
+        container.settingsViewModel.onHotkeysChanged = { [weak self] in
+            self?.registerHotkeys()
+        }
+
         Task {
             AppLogger.server.info(
                 "App launch config host=\(self.container.config.serverHost, privacy: .public) port=\(self.container.config.serverPort) python=\(self.container.config.pythonExecutablePath, privacy: .public) cwd=\(self.container.config.serverEntryWorkingDirectory.path, privacy: .public)"
@@ -59,9 +63,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func registerHotkeys() {
-        hotkeyManager.register(bindings: GlobalHotkeyManager.defaultBindings) { [weak self] action in
+        let settings = container.userSettings
+        let bindings = HotkeyParser.parseBindings(
+            palette: settings.paletteHotkey,
+            fix: settings.fixHotkey,
+            paraphrase: settings.paraphraseHotkey,
+            professional: settings.professionalHotkey
+        )
+        hotkeyManager.register(bindings: bindings) { [weak self] action in
             guard let self else { return }
-
             switch action {
             case .palette:
                 self.openCommandPalette()

@@ -5,6 +5,7 @@ final class DIContainer {
     static let shared = DIContainer()
 
     let config: AppConfig
+    let userSettings: UserSettings
     let serverProcessManager: ServerProcessManager
     let serverHealthClient: ServerHealthClient
     let correctionAPIClient: CorrectionAPIClient
@@ -16,13 +17,16 @@ final class DIContainer {
     let reviewPanelController: ReviewPanelController
     let toastController: ToastController
     let dictionaryService: DictionaryService
+    let modelManagementService: ModelManagementService
     let coordinator: CorrectionCoordinator
     let settingsViewModel: SettingsViewModel
 
     private init() {
         let config = AppConfig()
         self.config = config
+
         let userSettings = UserSettings()
+        self.userSettings = userSettings
 
         let processManager = ServerProcessManager(config: config)
         self.serverProcessManager = processManager
@@ -60,6 +64,9 @@ final class DIContainer {
         let dictionaryService = DictionaryService(baseURL: config.serverBaseURL, timeout: config.requestTimeout)
         self.dictionaryService = dictionaryService
 
+        let modelService = ModelManagementService(baseURL: config.serverBaseURL)
+        self.modelManagementService = modelService
+
         let coordinator = CorrectionCoordinator(
             config: config,
             serverManager: processManager,
@@ -86,7 +93,6 @@ final class DIContainer {
             coordinator?.retryReview()
         }
 
-        let modelService = ModelManagementService(baseURL: config.serverBaseURL)
         let settingsViewModel = SettingsViewModel(
             config: config,
             userSettings: userSettings,
@@ -96,5 +102,21 @@ final class DIContainer {
             modelService: modelService
         )
         self.settingsViewModel = settingsViewModel
+
+        // Wire settings change callbacks
+        settingsViewModel.onBackendOrModelChanged = { [weak processManager, weak settingsViewModel] in
+            guard let processManager, let settingsViewModel else { return }
+            let backend = settingsViewModel.backendChoice == .cloud ? "cloud" : "mlx"
+            let modelID = settingsViewModel.selectedModelID
+            let cloudKey = settingsViewModel.backendChoice == .cloud ? settingsViewModel.apiKey : nil
+            try? processManager.restart(
+                backend: backend,
+                modelID: modelID,
+                cloudURL: cloudKey != nil ? "https://api.vercel.ai" : nil,
+                cloudKey: cloudKey
+            )
+        }
+
+        settingsViewModel.onHotkeysChanged = {}  // Wired in AppDelegate
     }
 }
