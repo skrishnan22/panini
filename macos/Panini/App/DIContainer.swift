@@ -22,6 +22,7 @@ final class DIContainer {
     private init() {
         let config = AppConfig()
         self.config = config
+        let userSettings = UserSettings()
 
         let processManager = ServerProcessManager(config: config)
         self.serverProcessManager = processManager
@@ -85,11 +86,14 @@ final class DIContainer {
             coordinator?.retryReview()
         }
 
+        let modelService = ModelManagementService(baseURL: config.serverBaseURL)
         let settingsViewModel = SettingsViewModel(
             config: config,
+            userSettings: userSettings,
             healthClient: healthClient,
             permissionService: permissionService,
-            dictionaryService: dictionaryService
+            dictionaryService: dictionaryService,
+            modelService: modelService
         )
         self.settingsViewModel = settingsViewModel
     }

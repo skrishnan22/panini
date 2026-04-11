@@ -6,10 +6,8 @@ struct SettingsView: View {
     var body: some View {
         Form {
             Section("Backend") {
-                LabeledContent("Provider") { Text(viewModel.backendLabel) }
-                LabeledContent("Preset") { Text(viewModel.preset) }
-                LabeledContent("Review Hotkey") { Text(viewModel.reviewHotkey) }
-                LabeledContent("Auto-fix Hotkey") { Text(viewModel.autofixHotkey) }
+                LabeledContent("Provider") { Text(viewModel.backendChoice == .local ? "Localhost" : "Cloud") }
+                LabeledContent("Preset") { Text(viewModel.selectedPreset) }
                 LabeledContent("Server Status") {
                     Text(viewModel.serverStatus)
                         .foregroundColor(viewModel.serverStatus == "Healthy" ? Color.green : Color.red)
