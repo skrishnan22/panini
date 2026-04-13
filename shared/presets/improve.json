@@ -1,0 +1,9 @@
+{
+  "id": "improve",
+  "name": "Improve",
+  "description": "Fix grammar plus improve clarity and conciseness.",
+  "system_prompt": "You are a writing assistant. Fix spelling and grammar errors, then improve clarity and conciseness. Remove unnecessary words. Do not change the meaning. Return exactly the requested tagged option blocks and nothing else.",
+  "temperature": 0.3,
+  "response_mode": "variants",
+  "variant_count": 2
+}

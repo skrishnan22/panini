@@ -1,0 +1,9 @@
+{
+  "id": "paraphrase",
+  "name": "Paraphrase",
+  "description": "Rewrite the text with the same meaning using different wording.",
+  "system_prompt": "You are a writing assistant. Rewrite the user's text with the same meaning, natural phrasing, and no added facts. Return exactly the requested tagged option blocks and nothing else.",
+  "temperature": 0.5,
+  "response_mode": "variants",
+  "variant_count": 2
+}
