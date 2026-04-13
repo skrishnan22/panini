@@ -17,7 +17,7 @@ final class UserSettings: ObservableObject {
         defaults.register(defaults: [
             "defaultPreset": "fix",
             "backendChoice": BackendChoice.local.rawValue,
-            "selectedModelID": "gemma-4-e4b",
+            "selectedModelID": LocalModelCatalog.defaultModelID,
             "launchAtLogin": false,
             "paletteHotkey": "cmd+shift+g",
             "fixHotkey": "cmd+shift+option+g",
@@ -37,7 +37,14 @@ final class UserSettings: ObservableObject {
     }
 
     var selectedModelID: String {
-        get { defaults.string(forKey: "selectedModelID") ?? "gemma-4-e4b" }
+        get {
+            let current = defaults.string(forKey: "selectedModelID") ?? LocalModelCatalog.defaultModelID
+            let migrated = LocalModelCatalog.migratedModelID(from: current)
+            if migrated != current {
+                defaults.set(migrated, forKey: "selectedModelID")
+            }
+            return migrated
+        }
         set { defaults.set(newValue, forKey: "selectedModelID"); objectWillChange.send() }
     }
 

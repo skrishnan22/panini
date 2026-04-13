@@ -9,6 +9,9 @@ struct GeneralTabView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: SettingsTheme.sectionSpacing) {
                 backendSection
+                if viewModel.backendChoice == .local {
+                    modelSection
+                }
                 presetSection
                 behaviorSection
                 statusSection
@@ -45,6 +48,43 @@ struct GeneralTabView: View {
                         .font(SettingsTheme.captionFont)
                         .foregroundColor(.secondary)
                         .padding(SettingsTheme.cardPadding)
+                }
+            }
+        }
+    }
+
+    // MARK: - Model
+
+    private var modelSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeader(title: "Model")
+            SettingsCard {
+                VStack(alignment: .leading, spacing: 0) {
+                    if viewModel.downloadedModels.isEmpty {
+                        HStack {
+                            Text("No models downloaded")
+                                .font(SettingsTheme.bodyFont)
+                                .foregroundColor(.secondary)
+                            Spacer()
+                            Text("Go to Models tab to download")
+                                .font(SettingsTheme.captionFont)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(SettingsTheme.cardPadding)
+                    } else {
+                        HStack {
+                            Text("Active Model")
+                                .font(SettingsTheme.bodyFont)
+                            Spacer()
+                            Picker("", selection: $viewModel.selectedModelID) {
+                                ForEach(viewModel.downloadedModels) { model in
+                                    Text(model.name).tag(model.id)
+                                }
+                            }
+                            .fixedSize()
+                        }
+                        .padding(SettingsTheme.cardPadding)
+                    }
                 }
             }
         }
@@ -121,9 +161,9 @@ struct GeneralTabView: View {
                 SettingsCard {
                     VStack(spacing: 0) {
                         statusRow(
-                            label: "Server",
-                            value: viewModel.serverStatus,
-                            dot: viewModel.serverStatus == "Healthy" ? .healthy : .error
+                            label: "Provider",
+                            value: viewModel.providerStatus,
+                            dot: viewModel.backendChoice == .local ? .healthy : .warning
                         )
                         Divider().padding(.horizontal, SettingsTheme.cardPadding)
                         statusRow(

@@ -6,7 +6,6 @@ struct MenuBarView: View {
     let onQuickParaphrase: () -> Void
     let onQuickProfessional: () -> Void
     let onUndoLastApply: () -> Void
-    let onOpenSettings: () -> Void
     let onQuit: () -> Void
 
     var body: some View {
@@ -17,7 +16,9 @@ struct MenuBarView: View {
             Button("Quick Professional", action: onQuickProfessional)
             Button("Undo Last Apply", action: onUndoLastApply)
             Divider()
-            Button("Open Settings…", action: onOpenSettings)
+            SettingsLink {
+                Text("Open Settings…")
+            }
             Divider()
             Button("Quit", action: onQuit)
         }

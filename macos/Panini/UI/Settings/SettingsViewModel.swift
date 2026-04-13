@@ -28,8 +28,11 @@ final class SettingsViewModel: ObservableObject {
     }
     @Published var backendChoice: BackendChoice {
         didSet {
-            userSettings.backendChoice = backendChoice
-            onBackendOrModelChanged?()
+            let value = backendChoice
+            Task { [weak self] in
+                self?.userSettings.backendChoice = value
+                self?.onBackendOrModelChanged?()
+            }
         }
     }
     @Published var launchAtLogin: Bool {
@@ -43,8 +46,11 @@ final class SettingsViewModel: ObservableObject {
     }
 
     // MARK: - Status
-    @Published var serverStatus: String = "Starting"
     @Published var accessibilityGranted: Bool = false
+
+    var providerStatus: String {
+        backendChoice == .local ? "Local" : "Cloud unavailable"
+    }
 
     // MARK: - Models
     @Published var models: [ModelEntry] = []
@@ -92,12 +98,10 @@ final class SettingsViewModel: ObservableObject {
     var onHotkeysChanged: (() -> Void)?
 
     // MARK: - Dependencies
-    private let config: AppConfig
     private let userSettings: UserSettings
-    private let healthClient: ServerHealthChecking
     private let permissionService: AccessibilityPermissionService
-    private let dictionaryService: DictionaryService
-    private let modelService: ModelManagementService
+    private let dictionaryService: DictionaryManaging
+    private let modelService: ModelManaging
     private var downloadPollTimer: Timer?
 
     let availablePresets: [PresetOption] = [
@@ -117,16 +121,12 @@ final class SettingsViewModel: ObservableObject {
     ]
 
     init(
-        config: AppConfig,
         userSettings: UserSettings,
-        healthClient: ServerHealthChecking,
         permissionService: AccessibilityPermissionService,
-        dictionaryService: DictionaryService,
-        modelService: ModelManagementService
+        dictionaryService: DictionaryManaging,
+        modelService: ModelManaging
     ) {
-        self.config = config
         self.userSettings = userSettings
-        self.healthClient = healthClient
         self.permissionService = permissionService
         self.dictionaryService = dictionaryService
         self.modelService = modelService
@@ -144,11 +144,6 @@ final class SettingsViewModel: ObservableObject {
     }
 
     // MARK: - Status
-    func refreshServerHealth() async {
-        let healthy = await healthClient.isHealthy()
-        serverStatus = healthy ? "Healthy" : "Error"
-    }
-
     func refreshPermission() {
         accessibilityGranted = permissionService.isGranted()
     }
@@ -172,11 +167,16 @@ final class SettingsViewModel: ObservableObject {
                 entries.append(ModelEntry(
                     id: model.id, name: model.name, params: model.params,
                     ramGB: model.ramRequiredGB, downloadSizeGB: model.downloadSizeGB,
-                    isDefault: model.defaultFor == "mlx",
+                    isDefault: model.id == selectedModelID,
                     downloadStatus: statusResponse.status
                 ))
             }
             models = entries
+            // Ensure selectedModelID matches a downloaded model
+            let downloaded = downloadedModels
+            if !downloaded.isEmpty && !downloaded.contains(where: { $0.id == selectedModelID }) {
+                selectedModelID = downloaded[0].id
+            }
         } catch {
             lastError = error.localizedDescription
         }
@@ -184,11 +184,18 @@ final class SettingsViewModel: ObservableObject {
 
     func downloadModel(_ modelID: String) async {
         do {
-            try await modelService.startDownload(modelID: modelID)
             if let index = models.firstIndex(where: { $0.id == modelID }) {
                 models[index].downloadStatus = .downloading
             }
-            startPollingProgress(modelID: modelID)
+            try await modelService.startDownload(modelID: modelID)
+            let status = try await modelService.fetchModelStatus(modelID: modelID)
+            if let index = models.firstIndex(where: { $0.id == modelID }) {
+                models[index].downloadStatus = status.status
+                models[index].downloadProgress = nil
+            }
+            if status.status == .downloading {
+                startPollingProgress(modelID: modelID)
+            }
         } catch { lastError = error.localizedDescription }
     }
 
@@ -252,11 +259,15 @@ final class SettingsViewModel: ObservableObject {
         models.contains { $0.downloadStatus == .ready }
     }
 
+    var downloadedModels: [ModelEntry] {
+        models.filter { $0.downloadStatus == .ready }
+    }
+
     // MARK: - Cloud
     func testConnection() async {
         connectionTestStatus = .testing
-        let healthy = await healthClient.isHealthy()
-        connectionTestStatus = healthy ? .connected : .failed("Could not connect to backend.")
+        await Task.yield()
+        connectionTestStatus = .failed("Cloud provider is not configured yet.")
     }
 
     private func loadAPIKey() {

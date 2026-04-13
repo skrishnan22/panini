@@ -4,7 +4,6 @@ public enum PaniniError: LocalizedError {
     case selectionUnavailable
     case writeFailed
     case accessibilityPermissionMissing
-    case serverUnavailable
     case backendRequestFailed(String)
     case keychainError(OSStatus)
 
@@ -16,8 +15,6 @@ public enum PaniniError: LocalizedError {
             return "Unable to write corrected text into the focused field."
         case .accessibilityPermissionMissing:
             return "Accessibility permission is required for direct text replacement."
-        case .serverUnavailable:
-            return "Local Panini server is unavailable."
         case let .backendRequestFailed(message):
             return message
         case let .keychainError(status):

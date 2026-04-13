@@ -32,12 +32,19 @@ final class UserSettingsTests: XCTestCase {
     }
 
     func testDefaultModelID() {
-        XCTAssertEqual(settings.selectedModelID, "gemma-4-e4b")
+        XCTAssertEqual(settings.selectedModelID, LocalModelCatalog.defaultModelID)
     }
 
     func testSetSelectedModelID() {
-        settings.selectedModelID = "qwen-2.5-3b"
-        XCTAssertEqual(settings.selectedModelID, "qwen-2.5-3b")
+        settings.selectedModelID = "mlx-community/Qwen3-1.7B-4bit"
+        XCTAssertEqual(settings.selectedModelID, "mlx-community/Qwen3-1.7B-4bit")
+    }
+
+    func testMigratesLegacySelectedModelID() {
+        defaults.set("qwen-2.5-3b", forKey: "selectedModelID")
+
+        XCTAssertEqual(settings.selectedModelID, LocalModelCatalog.defaultModelID)
+        XCTAssertEqual(defaults.string(forKey: "selectedModelID"), LocalModelCatalog.defaultModelID)
     }
 
     func testDefaultLaunchAtLogin() {

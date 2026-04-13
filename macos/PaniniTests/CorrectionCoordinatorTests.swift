@@ -1,25 +1,6 @@
 import XCTest
 @testable import GrammarAI
 
-private final class MockServerManager: ServerControlling {
-    var shouldThrow = false
-    var starts = 0
-
-    func startIfNeeded() throws {
-        starts += 1
-        if shouldThrow { throw PaniniError.serverUnavailable }
-    }
-
-    func stop() {}
-
-    func restart(backend: String, modelID: String, cloudURL: String?, cloudKey: String?) throws {}
-}
-
-private struct MockHealthClient: ServerHealthChecking {
-    let healthy: Bool
-    func isHealthy() async -> Bool { healthy }
-}
-
 private struct MockAPIClient: CorrectionServing {
     let response: CorrectionResponse
 
@@ -37,6 +18,27 @@ private struct MockAPIClient: CorrectionServing {
         avoidOutputs: [String]
     ) async throws -> CorrectionResponse {
         response
+    }
+}
+
+private struct FailingPrepareAPIClient: CorrectionServing {
+    let error: Error
+
+    func prepare() async throws {
+        throw error
+    }
+
+    func correct(text: String, mode: CorrectionMode, preset: String) async throws -> CorrectionResult {
+        throw error
+    }
+
+    func correct(
+        text: String,
+        mode: CorrectionMode,
+        preset: String,
+        avoidOutputs: [String]
+    ) async throws -> CorrectionResponse {
+        throw error
     }
 }
 
@@ -346,11 +348,9 @@ final class CorrectionCoordinatorTests: XCTestCase {
 
         XCTAssertEqual(dependencies.coordinator.activeReviewSession?.phase, .loading)
         XCTAssertTrue((dependencies.apiClient as? ControllableAPIClient)?.hasPendingRequest == true)
-        XCTAssertEqual(dependencies.server.starts, 0)
     }
 
     func testRunReviewStoresCapturedSessionOnReviewSession() async {
-        let server = MockServerManager()
         let writer = MockTextWriter()
         let clipboard = MockClipboardInserter()
         let undo = MockUndoBuffer()
@@ -375,8 +375,6 @@ final class CorrectionCoordinatorTests: XCTestCase {
 
         let coordinator = CorrectionCoordinator(
             config: AppConfig(),
-            serverManager: server,
-            healthClient: MockHealthClient(healthy: true),
             apiClient: MockAPIClient(response: .single(makeResult())),
             frontmostApplicationProvider: frontmostProvider,
             applicationActivator: activator,
@@ -439,15 +437,10 @@ final class CorrectionCoordinatorTests: XCTestCase {
         XCTAssertEqual(dependencies.coordinator.activeReviewSession?.previewText, "Looks fine")
     }
 
-    func testServerFailureAfterPresentationTransitionsLoadingToFailed() async {
+    func testCorrectionServiceFailureAfterPresentationTransitionsLoadingToFailed() async {
+        let error = PaniniError.backendRequestFailed("Correction service is unavailable.")
         let dependencies = makeDependencies(
-            serverManager: {
-                let manager = MockServerManager()
-                manager.shouldThrow = true
-                return manager
-            }(),
-            healthClient: MockHealthClient(healthy: false),
-            apiClient: ControllableAPIClient()
+            apiClient: FailingPrepareAPIClient(error: error)
         )
 
         let task = Task { await dependencies.coordinator.runReview() }
@@ -456,9 +449,9 @@ final class CorrectionCoordinatorTests: XCTestCase {
             dependencies.coordinator.cancelReview()
         }
 
-        await waitUntil { dependencies.coordinator.activeReviewSession?.phase == .failed(message: PaniniError.serverUnavailable.localizedDescription ?? "") }
+        await waitUntil { dependencies.coordinator.activeReviewSession?.phase == .failed(message: error.localizedDescription) }
 
-        XCTAssertEqual(dependencies.reviewPresenter.presented?.phase, .failed(message: PaniniError.serverUnavailable.localizedDescription ?? ""))
+        XCTAssertEqual(dependencies.reviewPresenter.presented?.phase, .failed(message: error.localizedDescription))
         XCTAssertTrue(dependencies.toastPresenter.messages.isEmpty)
     }
 
@@ -572,7 +565,6 @@ final class CorrectionCoordinatorTests: XCTestCase {
     }
 
     func testAutofixModeWritesImmediatelyAndStoresUndo() async {
-        let server = MockServerManager()
         let writer = MockTextWriter()
         let clipboard = MockClipboardInserter()
         let undo = MockUndoBuffer()
@@ -582,8 +574,6 @@ final class CorrectionCoordinatorTests: XCTestCase {
 
         let coordinator = CorrectionCoordinator(
             config: AppConfig(),
-            serverManager: server,
-            healthClient: MockHealthClient(healthy: true),
             apiClient: MockAPIClient(response: .single(makeResult())),
             frontmostApplicationProvider: MockFrontmostApplicationProvider(processIdentifier: nil),
             applicationActivator: activator,
@@ -602,7 +592,6 @@ final class CorrectionCoordinatorTests: XCTestCase {
     }
 
     func testFailedAXWriteFallsBackToClipboard() async {
-        let server = MockServerManager()
         let writer = MockTextWriter()
         writer.shouldFail = true
 
@@ -614,8 +603,6 @@ final class CorrectionCoordinatorTests: XCTestCase {
 
         let coordinator = CorrectionCoordinator(
             config: AppConfig(),
-            serverManager: server,
-            healthClient: MockHealthClient(healthy: true),
             apiClient: MockAPIClient(response: .single(makeResult())),
             frontmostApplicationProvider: MockFrontmostApplicationProvider(processIdentifier: nil),
             applicationActivator: activator,
@@ -634,7 +621,6 @@ final class CorrectionCoordinatorTests: XCTestCase {
     }
 
     func testAutofixDoesNotStoreUndoWhenWriteAndClipboardFallbackFail() async {
-        let server = MockServerManager()
         let writer = MockTextWriter()
         writer.shouldFail = true
 
@@ -648,8 +634,6 @@ final class CorrectionCoordinatorTests: XCTestCase {
 
         let coordinator = CorrectionCoordinator(
             config: AppConfig(),
-            serverManager: server,
-            healthClient: MockHealthClient(healthy: true),
             apiClient: MockAPIClient(response: .single(makeResult())),
             frontmostApplicationProvider: MockFrontmostApplicationProvider(processIdentifier: nil),
             applicationActivator: activator,
@@ -668,7 +652,6 @@ final class CorrectionCoordinatorTests: XCTestCase {
     }
 
     func testApplyReviewDismissesPanelAndReactivatesOriginalAppBeforeWriting() async {
-        let server = MockServerManager()
         let writer = MockTextWriter()
         let clipboard = MockClipboardInserter()
         let undo = MockUndoBuffer()
@@ -684,8 +667,6 @@ final class CorrectionCoordinatorTests: XCTestCase {
 
         let coordinator = CorrectionCoordinator(
             config: AppConfig(),
-            serverManager: server,
-            healthClient: MockHealthClient(healthy: true),
             apiClient: MockAPIClient(response: .single(makeResult())),
             frontmostApplicationProvider: frontmostProvider,
             applicationActivator: activator,
@@ -707,7 +688,6 @@ final class CorrectionCoordinatorTests: XCTestCase {
     }
 
     func testApplyReviewClipboardFallbackTargetsOriginalApplication() async {
-        let server = MockServerManager()
         let writer = MockTextWriter()
         writer.shouldFail = true
 
@@ -734,8 +714,6 @@ final class CorrectionCoordinatorTests: XCTestCase {
 
         let coordinator = CorrectionCoordinator(
             config: AppConfig(),
-            serverManager: server,
-            healthClient: MockHealthClient(healthy: true),
             apiClient: MockAPIClient(response: .single(makeResult())),
             frontmostApplicationProvider: frontmostProvider,
             applicationActivator: activator,
@@ -758,7 +736,6 @@ final class CorrectionCoordinatorTests: XCTestCase {
     }
 
     func testApplyReviewDoesNotStoreUndoWhenWriteAndClipboardFallbackFail() async {
-        let server = MockServerManager()
         let writer = MockTextWriter()
         writer.shouldFail = true
 
@@ -772,8 +749,6 @@ final class CorrectionCoordinatorTests: XCTestCase {
 
         let coordinator = CorrectionCoordinator(
             config: AppConfig(),
-            serverManager: server,
-            healthClient: MockHealthClient(healthy: true),
             apiClient: MockAPIClient(response: .single(makeResult())),
             frontmostApplicationProvider: MockFrontmostApplicationProvider(processIdentifier: 42),
             applicationActivator: activator,
@@ -841,7 +816,6 @@ final class CorrectionCoordinatorTests: XCTestCase {
     }
 
     func testRunActionCaptureFailureDismissesExistingReviewSession() async {
-        let server = MockServerManager()
         let writer = MockTextWriter()
         let clipboard = MockClipboardInserter()
         let undo = MockUndoBuffer()
@@ -866,8 +840,6 @@ final class CorrectionCoordinatorTests: XCTestCase {
 
         let coordinator = CorrectionCoordinator(
             config: AppConfig(),
-            serverManager: server,
-            healthClient: MockHealthClient(healthy: true),
             apiClient: MockAPIClient(response: .single(makeResult())),
             frontmostApplicationProvider: MockFrontmostApplicationProvider(processIdentifier: 42),
             applicationActivator: activator,
@@ -890,8 +862,6 @@ final class CorrectionCoordinatorTests: XCTestCase {
     }
 
     private func makeDependencies(
-        serverManager: MockServerManager = MockServerManager(),
-        healthClient: MockHealthClient = MockHealthClient(healthy: true),
         apiClient: CorrectionServing = MockAPIClient(response: .single(CorrectionResult(
             original: "i has a error",
             corrected: "I have an error",
@@ -912,7 +882,6 @@ final class CorrectionCoordinatorTests: XCTestCase {
         toastPresenter: MockToastPresenter? = nil
     ) -> (
         coordinator: CorrectionCoordinator,
-        server: MockServerManager,
         apiClient: CorrectionServing,
         reviewPresenter: MockReviewPresenter,
         toastPresenter: MockToastPresenter
@@ -921,8 +890,6 @@ final class CorrectionCoordinatorTests: XCTestCase {
         let toastPresenter = toastPresenter ?? MockToastPresenter()
         let coordinator = CorrectionCoordinator(
             config: AppConfig(),
-            serverManager: serverManager,
-            healthClient: healthClient,
             apiClient: apiClient,
             frontmostApplicationProvider: frontmostApplicationProvider,
             applicationActivator: applicationActivator,
@@ -936,7 +903,6 @@ final class CorrectionCoordinatorTests: XCTestCase {
 
         return (
             coordinator: coordinator,
-            server: serverManager,
             apiClient: apiClient,
             reviewPresenter: reviewPresenter,
             toastPresenter: toastPresenter

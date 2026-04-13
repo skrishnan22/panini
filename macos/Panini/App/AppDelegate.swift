@@ -14,21 +14,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         container.settingsViewModel.onHotkeysChanged = { [weak self] in
             self?.registerHotkeys()
         }
-
-        Task {
-            AppLogger.server.info(
-                "App launch config host=\(self.container.config.serverHost, privacy: .public) port=\(self.container.config.serverPort) python=\(self.container.config.pythonExecutablePath, privacy: .public) cwd=\(self.container.config.serverEntryWorkingDirectory.path, privacy: .public)"
-            )
-
-            if !(await self.container.serverHealthClient.isHealthy()) {
-                try? self.container.serverProcessManager.startIfNeeded()
-            }
-            await self.container.settingsViewModel.refreshServerHealth()
-        }
-    }
-
-    func applicationWillTerminate(_ notification: Notification) {
-        container.serverProcessManager.stop()
     }
 
     func openCommandPalette() {
@@ -51,11 +36,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func undoLastApply() {
         Task { await self.container.coordinator.undoLastAutofix() }
-    }
-
-    func openSettingsWindow() {
-        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-        NSApp.activate(ignoringOtherApps: true)
     }
 
     func terminateApp() {

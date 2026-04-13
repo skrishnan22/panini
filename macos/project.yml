@@ -4,6 +4,10 @@ options:
   postGenCommand: bash scripts/downgrade_project_format.sh
   deploymentTarget:
     macOS: "14.0"
+packages:
+  mlx-swift-lm:
+    url: https://github.com/ml-explore/mlx-swift-lm.git
+    exactVersion: 2.31.3
 schemes:
   Panini:
     build:
@@ -26,6 +30,11 @@ targets:
         SWIFT_VERSION: 5.10
     info:
       path: Panini/Resources/Info.plist
+    dependencies:
+      - package: mlx-swift-lm
+        product: MLXLLM
+      - package: mlx-swift-lm
+        product: MLXLMCommon
   PaniniTests:
     type: bundle.unit-test
     platform: macOS

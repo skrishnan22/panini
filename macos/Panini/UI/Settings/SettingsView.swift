@@ -18,7 +18,9 @@ struct SettingsView: View {
         }
         .task {
             viewModel.refreshPermission()
-            await viewModel.refreshServerHealth()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
+            NSApp.activate()
         }
     }
 }

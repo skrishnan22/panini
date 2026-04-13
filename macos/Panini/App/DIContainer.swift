@@ -6,9 +6,6 @@ final class DIContainer {
 
     let config: AppConfig
     let userSettings: UserSettings
-    let serverProcessManager: ServerProcessManager
-    let serverHealthClient: ServerHealthClient
-    let correctionAPIClient: CorrectionAPIClient
     let accessibilityPermissionService: AccessibilityPermissionService
     let focusedTextReader: FocusedTextReader
     let focusedTextWriter: FocusedTextWriter
@@ -16,8 +13,10 @@ final class DIContainer {
     let undoBuffer: UndoBuffer
     let reviewPanelController: ReviewPanelController
     let toastController: ToastController
-    let dictionaryService: DictionaryService
-    let modelManagementService: ModelManagementService
+    let dictionaryService: DictionaryManaging
+    let modelManagementService: ModelManaging
+    let mlxRuntime: MLXModelRuntime
+    let correctionService: CorrectionServing
     let coordinator: CorrectionCoordinator
     let settingsViewModel: SettingsViewModel
 
@@ -27,15 +26,6 @@ final class DIContainer {
 
         let userSettings = UserSettings()
         self.userSettings = userSettings
-
-        let processManager = ServerProcessManager(config: config)
-        self.serverProcessManager = processManager
-
-        let healthClient = ServerHealthClient(baseURL: config.serverBaseURL, timeout: config.serverHealthTimeout)
-        self.serverHealthClient = healthClient
-
-        let apiClient = CorrectionAPIClient(baseURL: config.serverBaseURL, timeout: config.requestTimeout)
-        self.correctionAPIClient = apiClient
 
         let permissionService = AccessibilityPermissionService()
         self.accessibilityPermissionService = permissionService
@@ -61,17 +51,29 @@ final class DIContainer {
         let toast = ToastController()
         self.toastController = toast
 
-        let dictionaryService = DictionaryService(baseURL: config.serverBaseURL, timeout: config.requestTimeout)
+        let dictionaryService = LocalDictionaryStore()
         self.dictionaryService = dictionaryService
 
-        let modelService = ModelManagementService(baseURL: config.serverBaseURL)
+        let mlxRuntime = MLXModelRuntime()
+        self.mlxRuntime = mlxRuntime
+
+        let modelService = LocalModelStore(loader: mlxRuntime)
         self.modelManagementService = modelService
+
+        let localProvider = MLXLocalCorrectionProvider(
+            userSettings: userSettings,
+            dictionaryStore: dictionaryService,
+            generator: mlxRuntime
+        )
+        let correctionService = RoutingCorrectionService(
+            userSettings: userSettings,
+            localProvider: localProvider
+        )
+        self.correctionService = correctionService
 
         let coordinator = CorrectionCoordinator(
             config: config,
-            serverManager: processManager,
-            healthClient: healthClient,
-            apiClient: apiClient,
+            apiClient: correctionService,
             frontmostApplicationProvider: frontmostApplicationProvider,
             applicationActivator: applicationActivator,
             textReader: reader,
@@ -94,32 +96,12 @@ final class DIContainer {
         }
 
         let settingsViewModel = SettingsViewModel(
-            config: config,
             userSettings: userSettings,
-            healthClient: healthClient,
             permissionService: permissionService,
             dictionaryService: dictionaryService,
             modelService: modelService
         )
         self.settingsViewModel = settingsViewModel
-
-        // Wire settings change callbacks
-        settingsViewModel.onBackendOrModelChanged = { [weak processManager, weak settingsViewModel] in
-            guard let processManager, let settingsViewModel else { return }
-            let backend = settingsViewModel.backendChoice == .cloud ? "cloud" : "mlx"
-            let modelID = settingsViewModel.selectedModelID
-            let cloudKey = settingsViewModel.backendChoice == .cloud ? settingsViewModel.apiKey : nil
-            do {
-                try processManager.restart(
-                    backend: backend,
-                    modelID: modelID,
-                    cloudURL: cloudKey != nil ? "https://api.vercel.ai" : nil,
-                    cloudKey: cloudKey
-                )
-            } catch {
-                AppLogger.server.error("Server restart failed: \(error.localizedDescription, privacy: .public)")
-            }
-        }
 
         settingsViewModel.onHotkeysChanged = {}  // Wired in AppDelegate
     }

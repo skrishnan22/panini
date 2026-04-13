@@ -5,26 +5,21 @@ import XCTest
 final class SettingsViewModelTests: XCTestCase {
     private var defaults: UserDefaults!
     private var settings: UserSettings!
-    private var session: URLSession!
 
     override func setUp() {
         super.setUp()
         defaults = UserDefaults(suiteName: "SettingsViewModelTests")!
         defaults.removePersistentDomain(forName: "SettingsViewModelTests")
         settings = UserSettings(defaults: defaults)
-        session = makeMockSession()
     }
 
     private func makeViewModel() -> SettingsViewModel {
-        let config = AppConfig()
-        let healthClient = ServerHealthClient(baseURL: URL(string: "http://test")!, session: session)
         let permissionService = AccessibilityPermissionService()
-        let dictionaryService = DictionaryService(baseURL: URL(string: "http://test")!, session: session)
-        let modelService = ModelManagementService(baseURL: URL(string: "http://test")!, session: session)
         return SettingsViewModel(
-            config: config, userSettings: settings, healthClient: healthClient,
-            permissionService: permissionService, dictionaryService: dictionaryService,
-            modelService: modelService
+            userSettings: settings,
+            permissionService: permissionService,
+            dictionaryService: StubDictionaryService(),
+            modelService: StubModelService()
         )
     }
 
@@ -44,6 +39,7 @@ final class SettingsViewModelTests: XCTestCase {
         settings.backendChoice = .cloud
         let vm = makeViewModel()
         XCTAssertEqual(vm.backendChoice, .cloud)
+        XCTAssertEqual(vm.providerStatus, "Cloud unavailable")
     }
 
     func testAvailablePresetsMatchesSelectionActions() {
@@ -63,4 +59,31 @@ final class SettingsViewModelTests: XCTestCase {
         let vm = makeViewModel()
         XCTAssertFalse(vm.hasHotkeyConflict)
     }
+
+    func testConnectionReportsCloudProviderUnavailable() async {
+        let vm = makeViewModel()
+
+        await vm.testConnection()
+
+        XCTAssertEqual(vm.connectionTestStatus, .failed("Cloud provider is not configured yet."))
+    }
+}
+
+private struct StubDictionaryService: DictionaryManaging {
+    func listWords() async throws -> [String] { [] }
+    func addWord(_ word: String) async throws {}
+    func removeWord(_ word: String) async throws {}
+}
+
+private struct StubModelService: ModelManaging {
+    func fetchModelList() async throws -> [ModelListEntry] { [] }
+    func fetchModelStatus(modelID: String) async throws -> ModelStatusResponse {
+        ModelStatusResponse(modelID: modelID, status: .notDownloaded)
+    }
+    func startDownload(modelID: String) async throws {}
+    func fetchDownloadProgress(modelID: String) async throws -> DownloadProgressResponse {
+        DownloadProgressResponse(modelID: modelID, status: "not_downloaded", bytesDownloaded: nil, bytesTotal: nil, error: nil)
+    }
+    func cancelDownload(modelID: String) async throws {}
+    func deleteModel(modelID: String) async throws {}
 }

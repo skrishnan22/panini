@@ -12,7 +12,6 @@ struct PaniniApp: App {
                 onQuickParaphrase: appDelegate.runQuickParaphrase,
                 onQuickProfessional: appDelegate.runQuickProfessional,
                 onUndoLastApply: appDelegate.undoLastApply,
-                onOpenSettings: appDelegate.openSettingsWindow,
                 onQuit: appDelegate.terminateApp
             )
         }
