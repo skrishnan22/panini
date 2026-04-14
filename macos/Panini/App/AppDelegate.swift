@@ -17,8 +17,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func openCommandPalette() {
+        let capturedEditingSession = try? container.coordinator.captureCurrentEditingSession()
         commandPaletteController.present(actions: commandPaletteActions) { [weak self] action in
-            self?.runAction(action)
+            self?.runAction(action, using: capturedEditingSession)
         }
     }
 
@@ -65,8 +66,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func runAction(_ action: SelectionAction) {
+    private func runAction(_ action: SelectionAction, using capturedEditingSession: TextEditingSession? = nil) {
+        let editingSession = capturedEditingSession ?? (try? container.coordinator.captureCurrentEditingSession())
         commandPaletteController.dismiss()
-        Task { await container.coordinator.runAction(action) }
+        Task { await container.coordinator.runAction(action, using: editingSession) }
     }
 }

@@ -36,7 +36,10 @@ final class SettingsViewModel: ObservableObject {
         }
     }
     @Published var launchAtLogin: Bool {
-        didSet { userSettings.launchAtLogin = launchAtLogin }
+        didSet {
+            guard !isSyncingLaunchAtLogin else { return }
+            applyLaunchAtLogin(launchAtLogin)
+        }
     }
     @Published var selectedModelID: String {
         didSet {
@@ -49,12 +52,16 @@ final class SettingsViewModel: ObservableObject {
     @Published var accessibilityGranted: Bool = false
 
     var providerStatus: String {
-        backendChoice == .local ? "Local" : "Cloud unavailable"
+        if backendChoice == .local {
+            hasAnyModelDownloaded ? "Local" : "Local (model required)"
+        } else {
+            "Cloud unavailable"
+        }
     }
 
     // MARK: - Models
     @Published var models: [ModelEntry] = []
-    @Published var totalDiskUsageLabel: String = "0 GB used by models"
+    @Published var totalDiskUsageLabel: String = "0 GB estimated model storage"
 
     // MARK: - Cloud
     @Published var apiKey: String = "" {
@@ -102,7 +109,9 @@ final class SettingsViewModel: ObservableObject {
     private let permissionService: AccessibilityPermissionService
     private let dictionaryService: DictionaryManaging
     private let modelService: ModelManaging
+    private let launchAtLoginService: LaunchAtLoginManaging
     private var downloadPollTimer: Timer?
+    private var isSyncingLaunchAtLogin = false
 
     let availablePresets: [PresetOption] = [
         PresetOption(id: "fix", name: "Fix", description: "Correct grammar and spelling"),
@@ -124,22 +133,25 @@ final class SettingsViewModel: ObservableObject {
         userSettings: UserSettings,
         permissionService: AccessibilityPermissionService,
         dictionaryService: DictionaryManaging,
-        modelService: ModelManaging
+        modelService: ModelManaging,
+        launchAtLoginService: LaunchAtLoginManaging = LaunchAtLoginService()
     ) {
         self.userSettings = userSettings
         self.permissionService = permissionService
         self.dictionaryService = dictionaryService
         self.modelService = modelService
+        self.launchAtLoginService = launchAtLoginService
 
         self.selectedPreset = userSettings.defaultPreset
         self.backendChoice = userSettings.backendChoice
-        self.launchAtLogin = userSettings.launchAtLogin
+        self.launchAtLogin = launchAtLoginService.isEnabled
         self.selectedModelID = userSettings.selectedModelID
         self.paletteHotkey = userSettings.paletteHotkey
         self.fixHotkey = userSettings.fixHotkey
         self.paraphraseHotkey = userSettings.paraphraseHotkey
         self.professionalHotkey = userSettings.professionalHotkey
         self.accessibilityGranted = permissionService.isGranted()
+        userSettings.launchAtLogin = launchAtLogin
         loadAPIKey()
     }
 
@@ -155,6 +167,20 @@ final class SettingsViewModel: ObservableObject {
 
     func openSystemSettings() {
         permissionService.openSystemSettings()
+    }
+
+    private func applyLaunchAtLogin(_ enabled: Bool) {
+        do {
+            try launchAtLoginService.setEnabled(enabled)
+            userSettings.launchAtLogin = enabled
+            lastError = nil
+        } catch {
+            isSyncingLaunchAtLogin = true
+            launchAtLogin = launchAtLoginService.isEnabled
+            isSyncingLaunchAtLogin = false
+            userSettings.launchAtLogin = launchAtLogin
+            lastError = "Could not update Launch at Login: \(error.localizedDescription)"
+        }
     }
 
     // MARK: - Models
@@ -177,6 +203,7 @@ final class SettingsViewModel: ObservableObject {
             if !downloaded.isEmpty && !downloaded.contains(where: { $0.id == selectedModelID }) {
                 selectedModelID = downloaded[0].id
             }
+            updateTotalDiskUsageLabel()
         } catch {
             lastError = error.localizedDescription
         }
@@ -193,6 +220,7 @@ final class SettingsViewModel: ObservableObject {
                 models[index].downloadStatus = status.status
                 models[index].downloadProgress = nil
             }
+            updateTotalDiskUsageLabel()
             if status.status == .downloading {
                 startPollingProgress(modelID: modelID)
             }
@@ -206,6 +234,7 @@ final class SettingsViewModel: ObservableObject {
                 models[index].downloadStatus = .notDownloaded
                 models[index].downloadProgress = nil
             }
+            updateTotalDiskUsageLabel()
             stopPollingProgress()
         } catch { lastError = error.localizedDescription }
     }
@@ -216,6 +245,7 @@ final class SettingsViewModel: ObservableObject {
             if let index = models.firstIndex(where: { $0.id == modelID }) {
                 models[index].downloadStatus = .notDownloaded
             }
+            updateTotalDiskUsageLabel()
         } catch { lastError = error.localizedDescription }
     }
 
@@ -238,6 +268,7 @@ final class SettingsViewModel: ObservableObject {
             if progress.status == "ready" || progress.status == "not_downloaded" {
                 models[index].downloadStatus = ModelDownloadStatus(rawValue: progress.status) ?? .notDownloaded
                 models[index].downloadProgress = nil
+                updateTotalDiskUsageLabel()
                 stopPollingProgress()
             } else if progress.status == "downloading" {
                 models[index].downloadStatus = .downloading
@@ -249,6 +280,7 @@ final class SettingsViewModel: ObservableObject {
             } else if progress.status == "failed" {
                 models[index].downloadStatus = .notDownloaded
                 models[index].downloadProgress = nil
+                updateTotalDiskUsageLabel()
                 lastError = progress.error ?? "Download failed."
                 stopPollingProgress()
             }
@@ -261,6 +293,13 @@ final class SettingsViewModel: ObservableObject {
 
     var downloadedModels: [ModelEntry] {
         models.filter { $0.downloadStatus == .ready }
+    }
+
+    private func updateTotalDiskUsageLabel() {
+        let totalGB = downloadedModels.reduce(0) { $0 + $1.downloadSizeGB }
+        totalDiskUsageLabel = totalGB > 0
+            ? String(format: "%.1f GB estimated model storage", totalGB)
+            : "0 GB estimated model storage"
     }
 
     // MARK: - Cloud

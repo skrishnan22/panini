@@ -136,11 +136,8 @@ private struct ModelRowView: View {
             .foregroundColor(SettingsTheme.accent)
 
         case .downloading:
-            Button("Cancel") {
-                Task { await viewModel.cancelDownload(model.id) }
-            }
+            Text("Downloading")
             .font(.system(size: 12))
-            .buttonStyle(.plain)
             .foregroundColor(.secondary)
 
         case .ready:

@@ -54,16 +54,19 @@ final class DIContainer {
         let dictionaryService = LocalDictionaryStore()
         self.dictionaryService = dictionaryService
 
-        let mlxRuntime = MLXModelRuntime()
+        let modelsDirectory = try? PaniniDirectories.modelsDirectory()
+
+        let mlxRuntime = MLXModelRuntime(modelsDirectory: modelsDirectory)
         self.mlxRuntime = mlxRuntime
 
-        let modelService = LocalModelStore(loader: mlxRuntime)
+        let modelService = LocalModelStore(loader: mlxRuntime, modelsDirectory: modelsDirectory)
         self.modelManagementService = modelService
 
         let localProvider = MLXLocalCorrectionProvider(
             userSettings: userSettings,
             dictionaryStore: dictionaryService,
-            generator: mlxRuntime
+            generator: mlxRuntime,
+            readinessChecker: modelService
         )
         let correctionService = RoutingCorrectionService(
             userSettings: userSettings,

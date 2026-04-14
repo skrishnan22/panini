@@ -5,12 +5,14 @@ import XCTest
 final class SettingsViewModelTests: XCTestCase {
     private var defaults: UserDefaults!
     private var settings: UserSettings!
+    private var launchAtLoginService: StubLaunchAtLoginService!
 
     override func setUp() {
         super.setUp()
         defaults = UserDefaults(suiteName: "SettingsViewModelTests")!
         defaults.removePersistentDomain(forName: "SettingsViewModelTests")
         settings = UserSettings(defaults: defaults)
+        launchAtLoginService = StubLaunchAtLoginService()
     }
 
     private func makeViewModel() -> SettingsViewModel {
@@ -19,7 +21,8 @@ final class SettingsViewModelTests: XCTestCase {
             userSettings: settings,
             permissionService: permissionService,
             dictionaryService: StubDictionaryService(),
-            modelService: StubModelService()
+            modelService: StubModelService(),
+            launchAtLoginService: launchAtLoginService
         )
     }
 
@@ -67,6 +70,36 @@ final class SettingsViewModelTests: XCTestCase {
 
         XCTAssertEqual(vm.connectionTestStatus, .failed("Cloud provider is not configured yet."))
     }
+
+    func testLaunchAtLoginUsesSystemServiceState() {
+        settings.launchAtLogin = true
+        launchAtLoginService.enabled = false
+
+        let vm = makeViewModel()
+
+        XCTAssertFalse(vm.launchAtLogin)
+        XCTAssertFalse(settings.launchAtLogin)
+    }
+
+    func testSetLaunchAtLoginUpdatesSystemServiceAndSettings() {
+        let vm = makeViewModel()
+
+        vm.launchAtLogin = true
+
+        XCTAssertTrue(launchAtLoginService.enabled)
+        XCTAssertTrue(settings.launchAtLogin)
+    }
+
+    func testLaunchAtLoginFailureRevertsToggle() {
+        launchAtLoginService.errorToThrow = StubLaunchAtLoginService.StubError.failed
+        let vm = makeViewModel()
+
+        vm.launchAtLogin = true
+
+        XCTAssertFalse(vm.launchAtLogin)
+        XCTAssertFalse(settings.launchAtLogin)
+        XCTAssertEqual(vm.lastError, "Could not update Launch at Login: failed")
+    }
 }
 
 private struct StubDictionaryService: DictionaryManaging {
@@ -86,4 +119,24 @@ private struct StubModelService: ModelManaging {
     }
     func cancelDownload(modelID: String) async throws {}
     func deleteModel(modelID: String) async throws {}
+}
+
+private final class StubLaunchAtLoginService: LaunchAtLoginManaging, @unchecked Sendable {
+    enum StubError: LocalizedError {
+        case failed
+
+        var errorDescription: String? { "failed" }
+    }
+
+    var enabled = false
+    var errorToThrow: Error?
+
+    var isEnabled: Bool { enabled }
+
+    func setEnabled(_ enabled: Bool) throws {
+        if let errorToThrow {
+            throw errorToThrow
+        }
+        self.enabled = enabled
+    }
 }

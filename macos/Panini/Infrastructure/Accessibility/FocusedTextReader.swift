@@ -32,7 +32,7 @@ final class AXTextElementRef: AXTextElement {
     }
 }
 
-final class DefaultFocusedElementProvider: FocusedElementProviding {
+final class DefaultFocusedElementProvider: FocusedElementProviding, @unchecked Sendable {
     static let shared = DefaultFocusedElementProvider()
 
     func focusedElement() -> AXTextElement? {
@@ -86,7 +86,7 @@ final class DefaultFocusedElementProvider: FocusedElementProviding {
         let result = AXUIElementCopyAttributeValue(element, name as CFString, &value)
         guard result == .success, let value else { return nil }
         guard CFGetTypeID(value) == AXUIElementGetTypeID() else { return nil }
-        return unsafeBitCast(value, to: AXUIElement.self)
+        return unsafeDowncast(value, to: AXUIElement.self)
     }
 }
 

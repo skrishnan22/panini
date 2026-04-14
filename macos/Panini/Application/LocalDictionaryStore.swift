@@ -56,11 +56,8 @@ actor LocalDictionaryStore: DictionaryManaging {
     }
 
     private static func defaultFileURL() -> URL {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-            ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support")
-
-        return base
-            .appendingPathComponent("Panini", isDirectory: true)
-            .appendingPathComponent("dictionary.json")
+        (try? PaniniDirectories.dictionaryFileURL())
+            ?? PaniniDirectories.fallbackApplicationSupportDirectory()
+                .appendingPathComponent(PaniniDirectories.dictionaryFileName)
     }
 }

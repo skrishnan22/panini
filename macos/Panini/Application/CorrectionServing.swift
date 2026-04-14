@@ -1,6 +1,6 @@
 import Foundation
 
-protocol CorrectionServing {
+protocol CorrectionServing: Sendable {
     func prepare() async throws
     func correct(text: String, mode: CorrectionMode, preset: String) async throws -> CorrectionResult
     func correct(

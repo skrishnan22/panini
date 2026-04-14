@@ -791,6 +791,43 @@ final class CorrectionCoordinatorTests: XCTestCase {
         XCTAssertEqual(session.activeAction, .professional)
     }
 
+    func testRunActionUsesPreCapturedSessionWhenFocusIsNoLongerReadable() async throws {
+        let apiClient = ControllableAPIClient()
+        let capturedSession = TextEditingSession(
+            targetProcessIdentifier: 42,
+            element: MockAXCapabilityElement(),
+            capabilities: AXElementCapabilities(
+                supportedAttributes: [kAXSelectedTextAttribute as String],
+                supportedParameterizedAttributes: [],
+                settableAttributes: [kAXSelectedTextAttribute as String]
+            ),
+            selectedText: "captured before palette focus",
+            selectedRange: nil,
+            fullValue: nil,
+            readStrategy: .selectedTextAttribute,
+            writeStrategy: .selectedTextAttribute
+        )
+        let dependencies = makeDependencies(
+            apiClient: apiClient,
+            frontmostApplicationProvider: MockFrontmostApplicationProvider(processIdentifier: 999),
+            textReader: MockTextReader(sessions: [])
+        )
+
+        let task = Task {
+            await dependencies.coordinator.runAction(.professional, using: capturedSession)
+        }
+        defer {
+            task.cancel()
+            dependencies.coordinator.cancelReview()
+        }
+
+        await waitUntil { apiClient.hasPendingRequest }
+
+        XCTAssertEqual(apiClient.requestedTexts, ["captured before palette focus"])
+        XCTAssertEqual(dependencies.coordinator.activeReviewSession?.targetProcessIdentifier, 42)
+        XCTAssertTrue(dependencies.toastPresenter.messages.isEmpty)
+    }
+
     func testRegenerateForwardsVisibleVariantsAsAvoidOutputs() async {
         let api = ControllableAPIClient()
         let coordinator = makeDependencies(

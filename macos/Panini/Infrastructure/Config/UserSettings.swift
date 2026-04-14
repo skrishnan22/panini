@@ -5,7 +5,7 @@ enum BackendChoice: String {
     case cloud
 }
 
-final class UserSettings: ObservableObject {
+final class UserSettings: ObservableObject, @unchecked Sendable {
     private let defaults: UserDefaults
 
     init(defaults: UserDefaults = .standard) {

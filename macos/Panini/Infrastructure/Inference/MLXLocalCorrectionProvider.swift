@@ -4,6 +4,7 @@ struct MLXLocalCorrectionProvider: CorrectionServing {
     private let userSettings: UserSettings
     private let dictionaryStore: DictionaryManaging
     private let generator: LocalTextGenerating
+    private let readinessChecker: LocalModelReadinessChecking?
     private let promptBuilder: PromptBuilder
     private let variantParser: VariantResponseParser
     private let maxTokens: Int
@@ -12,6 +13,7 @@ struct MLXLocalCorrectionProvider: CorrectionServing {
         userSettings: UserSettings,
         dictionaryStore: DictionaryManaging,
         generator: LocalTextGenerating,
+        readinessChecker: LocalModelReadinessChecking? = nil,
         promptBuilder: PromptBuilder = PromptBuilder(),
         variantParser: VariantResponseParser = VariantResponseParser(),
         maxTokens: Int = 1024
@@ -19,13 +21,14 @@ struct MLXLocalCorrectionProvider: CorrectionServing {
         self.userSettings = userSettings
         self.dictionaryStore = dictionaryStore
         self.generator = generator
+        self.readinessChecker = readinessChecker
         self.promptBuilder = promptBuilder
         self.variantParser = variantParser
         self.maxTokens = maxTokens
     }
 
     func prepare() async throws {
-        _ = try selectedModel()
+        try await ensureModelReady(try selectedModel())
     }
 
     func correct(text: String, mode: CorrectionMode, preset: String) async throws -> CorrectionResult {
@@ -48,6 +51,7 @@ struct MLXLocalCorrectionProvider: CorrectionServing {
         }
 
         let model = try selectedModel()
+        try await ensureModelReady(model)
         let dictionaryWords = try await dictionaryStore.listWords()
         let messages = try promptBuilder.messages(
             text: text,
@@ -91,6 +95,13 @@ struct MLXLocalCorrectionProvider: CorrectionServing {
             throw PaniniError.backendRequestFailed("Unknown local model '\(modelID)'.")
         }
         return model
+    }
+
+    private func ensureModelReady(_ model: LocalModel) async throws {
+        guard let readinessChecker else { return }
+        guard await readinessChecker.isModelReady(model.id) else {
+            throw PaniniError.backendRequestFailed("Download a local model before using Panini.")
+        }
     }
 
     private func singlePayload(

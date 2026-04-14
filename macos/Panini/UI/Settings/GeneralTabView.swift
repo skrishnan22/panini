@@ -163,7 +163,7 @@ struct GeneralTabView: View {
                         statusRow(
                             label: "Provider",
                             value: viewModel.providerStatus,
-                            dot: viewModel.backendChoice == .local ? .healthy : .warning
+                            dot: viewModel.backendChoice == .local && viewModel.hasAnyModelDownloaded ? .healthy : .warning
                         )
                         Divider().padding(.horizontal, SettingsTheme.cardPadding)
                         statusRow(
@@ -175,12 +175,19 @@ struct GeneralTabView: View {
                             },
                             actionLabel: "Grant"
                         )
-                        if !viewModel.selectedModelID.isEmpty {
+                        if let activeModel = viewModel.downloadedModels.first(where: { $0.id == viewModel.selectedModelID }) {
                             Divider().padding(.horizontal, SettingsTheme.cardPadding)
                             statusRow(
                                 label: "Active Model",
-                                value: viewModel.selectedModelID,
-                                dot: .neutral
+                                value: activeModel.name,
+                                dot: .healthy
+                            )
+                        } else if viewModel.backendChoice == .local {
+                            Divider().padding(.horizontal, SettingsTheme.cardPadding)
+                            statusRow(
+                                label: "Model",
+                                value: "Not downloaded",
+                                dot: .warning
                             )
                         }
                     }

@@ -80,7 +80,12 @@ final class CorrectionCoordinator: ObservableObject {
         await runAction(.fix)
     }
 
-    func runAction(_ action: SelectionAction) async {
+    func captureCurrentEditingSession() throws -> TextEditingSession {
+        let targetProcessIdentifier = frontmostApplicationProvider.frontmostProcessIdentifier()
+        return try textReader.captureSession(targetProcessIdentifier: targetProcessIdentifier)
+    }
+
+    func runAction(_ action: SelectionAction, using capturedEditingSession: TextEditingSession? = nil) async {
         AppLogger.coordinator.info("runAction invoked action=\(action.rawValue, privacy: .public)")
         activeReviewTask?.cancel()
         activeReviewTask = nil
@@ -92,8 +97,7 @@ final class CorrectionCoordinator: ObservableObject {
         }
 
         do {
-            let targetProcessIdentifier = frontmostApplicationProvider.frontmostProcessIdentifier()
-            let editingSession = try textReader.captureSession(targetProcessIdentifier: targetProcessIdentifier)
+            let editingSession = try capturedEditingSession ?? captureCurrentEditingSession()
             AppLogger.coordinator.info(
                 "Selection captured for action=\(action.rawValue, privacy: .public) chars=\(editingSession.selectedText.count)"
             )

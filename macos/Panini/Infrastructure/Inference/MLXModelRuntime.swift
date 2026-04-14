@@ -1,8 +1,9 @@
 import Foundation
+import Hub
 import MLXLLM
 import MLXLMCommon
 
-protocol LocalTextGenerating {
+protocol LocalTextGenerating: Sendable {
     func generate(
         model: LocalModel,
         systemPrompt: String,
@@ -12,14 +13,30 @@ protocol LocalTextGenerating {
     ) async throws -> String
 }
 
-protocol LocalModelLoading {
+protocol LocalModelLoading: Sendable {
     func load(model: LocalModel) async throws
+    func downloadProgress(modelID: String) async -> LocalModelDownloadProgress?
+}
+
+struct LocalModelDownloadProgress: Sendable {
+    let bytesDownloaded: Int?
+    let bytesTotal: Int?
 }
 
 actor MLXModelRuntime: LocalTextGenerating, LocalModelLoading {
     private var loadedModelID: String?
     private var container: ModelContainer?
     private var progressByModelID: [String: Progress] = [:]
+    private let hub: HubApi
+
+    init(modelsDirectory: URL? = nil) {
+        let directory = modelsDirectory
+            ?? (try? PaniniDirectories.modelsDirectory())
+            ?? PaniniDirectories.fallbackApplicationSupportDirectory()
+                .appendingPathComponent(PaniniDirectories.modelsDirectoryName, isDirectory: true)
+
+        self.hub = HubApi(downloadBase: directory, cache: nil)
+    }
 
     func load(model: LocalModel) async throws {
         _ = try await container(for: model)
@@ -43,8 +60,13 @@ actor MLXModelRuntime: LocalTextGenerating, LocalModelLoading {
         return try await session.respond(to: userMessage)
     }
 
-    func progress(modelID: String) -> Progress? {
-        progressByModelID[modelID]
+    func downloadProgress(modelID: String) async -> LocalModelDownloadProgress? {
+        guard let progress = progressByModelID[modelID] else { return nil }
+
+        return LocalModelDownloadProgress(
+            bytesDownloaded: Self.intValue(progress.completedUnitCount),
+            bytesTotal: progress.totalUnitCount > 0 ? Self.intValue(progress.totalUnitCount) : nil
+        )
     }
 
     private func container(for model: LocalModel) async throws -> ModelContainer {
@@ -53,7 +75,7 @@ actor MLXModelRuntime: LocalTextGenerating, LocalModelLoading {
         }
 
         let modelID = model.id
-        let loadedContainer = try await loadModelContainer(id: modelID) { [weak self] progress in
+        let loadedContainer = try await loadModelContainer(hub: hub, id: modelID) { [weak self] progress in
             Task { await self?.record(progress: progress, modelID: modelID) }
         }
 
@@ -64,5 +86,10 @@ actor MLXModelRuntime: LocalTextGenerating, LocalModelLoading {
 
     private func record(progress: Progress, modelID: String) {
         progressByModelID[modelID] = progress
+    }
+
+    private static func intValue(_ value: Int64) -> Int? {
+        guard value >= 0, value <= Int64(Int.max) else { return nil }
+        return Int(value)
     }
 }

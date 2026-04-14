@@ -1,12 +1,16 @@
 import Foundation
 
-protocol ModelManaging {
+protocol ModelManaging: Sendable {
     func fetchModelList() async throws -> [ModelListEntry]
     func fetchModelStatus(modelID: String) async throws -> ModelStatusResponse
     func startDownload(modelID: String) async throws
     func fetchDownloadProgress(modelID: String) async throws -> DownloadProgressResponse
     func cancelDownload(modelID: String) async throws
     func deleteModel(modelID: String) async throws
+}
+
+protocol LocalModelReadinessChecking: Sendable {
+    func isModelReady(_ modelID: String) async -> Bool
 }
 
 enum ModelDownloadStatus: String, Codable {
