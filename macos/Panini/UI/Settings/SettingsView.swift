@@ -15,7 +15,6 @@ struct SettingsView: View {
                 .tabItem { Label("Hotkeys", systemImage: "keyboard") }
             DictionaryTabView(viewModel: viewModel)
                 .tabItem { Label("Dictionary", systemImage: "book") }
-        }
         .task {
             viewModel.refreshPermission()
             await viewModel.loadModels()
