@@ -25,8 +25,6 @@ final class SettingsViewModel: ObservableObject {
     // MARK: - General
     @Published var selectedPreset: String {
         didSet { userSettings.defaultPreset = selectedPreset }
-    }
-    @Published var backendChoice: BackendChoice {
     @Published var backendChoice: BackendChoice {
         didSet {
             userSettings.backendChoice = backendChoice
