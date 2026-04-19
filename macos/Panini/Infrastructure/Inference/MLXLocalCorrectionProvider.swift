@@ -137,36 +137,41 @@ struct MLXLocalCorrectionProvider: CorrectionServing {
 
     private func ranges(of word: String, in text: String) -> [Range<Int>] {
         var ranges: [Range<Int>] = []
-        var searchStart = text.startIndex
+        let nsText = text as NSString
+        var searchRange = NSRange(location: 0, length: nsText.length)
 
-        while searchStart < text.endIndex,
-              let range = text.range(of: word, range: searchStart..<text.endIndex)
-        {
-            let start = text.distance(from: text.startIndex, to: range.lowerBound)
-            let end = text.distance(from: text.startIndex, to: range.upperBound)
+        while searchRange.length > 0 {
+            let match = nsText.range(of: word, options: [], range: searchRange)
+            guard match.location != NSNotFound else { break }
+
+            let start = match.location
+            let end = NSMaxRange(match)
             ranges.append(start..<end)
-            searchStart = range.upperBound
+
+            let nextLocation = end
+            searchRange = NSRange(location: nextLocation, length: nsText.length - nextLocation)
         }
 
         return ranges
     }
 
     private func apply(changes: [Change], to original: String) -> String {
-        changes
-            .sorted { $0.offsetStart > $1.offsetStart }
-            .reduce(original) { current, change in
-                guard change.offsetStart >= 0,
-                      change.offsetEnd >= change.offsetStart,
-                      change.offsetEnd <= current.count
-                else {
-                    return current
-                }
+        let current = NSMutableString(string: original)
 
-                let lower = current.index(current.startIndex, offsetBy: change.offsetStart)
-                let upper = current.index(current.startIndex, offsetBy: change.offsetEnd)
-                var next = current
-                next.replaceSubrange(lower..<upper, with: change.replacement)
-                return next
+        for change in changes.sorted(by: { $0.offsetStart > $1.offsetStart }) {
+            guard change.offsetStart >= 0,
+                  change.offsetEnd >= change.offsetStart,
+                  change.offsetEnd <= current.length
+            else {
+                continue
             }
+
+            current.replaceCharacters(
+                in: NSRange(location: change.offsetStart, length: change.offsetEnd - change.offsetStart),
+                with: change.replacement
+            )
+        }
+
+        return current as String
     }
 }

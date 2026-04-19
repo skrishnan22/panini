@@ -69,8 +69,8 @@ enum CorrectionDiff {
             guard let tokenRange = Range(match.range, in: text) else { return nil }
             return Token(
                 text: String(text[tokenRange]),
-                start: text.distance(from: text.startIndex, to: tokenRange.lowerBound),
-                end: text.distance(from: text.startIndex, to: tokenRange.upperBound)
+                start: match.range.location,
+                end: NSMaxRange(match.range)
             )
         }
     }
@@ -217,7 +217,8 @@ enum CorrectionDiff {
         guard !tokens.isEmpty else { return ("", 0, 0) }
 
         if startIndex >= tokens.count {
-            return ("", source.count, source.count)
+            let offset = (source as NSString).length
+            return ("", offset, offset)
         }
 
         if startIndex >= endIndex {
@@ -227,9 +228,7 @@ enum CorrectionDiff {
 
         let start = tokens[startIndex].start
         let end = tokens[endIndex - 1].end
-        let lower = source.index(source.startIndex, offsetBy: start)
-        let upper = source.index(source.startIndex, offsetBy: end)
-        return (String(source[lower..<upper]), start, end)
+        return ((source as NSString).substring(with: NSRange(location: start, length: end - start)), start, end)
     }
 
     private static func sliceText(
@@ -242,8 +241,6 @@ enum CorrectionDiff {
 
         let start = tokens[startIndex].start
         let end = tokens[endIndex - 1].end
-        let lower = source.index(source.startIndex, offsetBy: start)
-        let upper = source.index(source.startIndex, offsetBy: end)
-        return String(source[lower..<upper])
+        return (source as NSString).substring(with: NSRange(location: start, length: end - start))
     }
 }

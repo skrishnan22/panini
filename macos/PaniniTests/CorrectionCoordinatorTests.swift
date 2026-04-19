@@ -42,7 +42,7 @@ private struct FailingPrepareAPIClient: CorrectionServing {
     }
 }
 
-private final class ControllableAPIClient: CorrectionServing {
+private final class ControllableAPIClient: CorrectionServing, @unchecked Sendable {
     private struct PendingRequest {
         let id: UUID
         let text: String

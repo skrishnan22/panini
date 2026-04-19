@@ -15,13 +15,15 @@ final class SettingsViewModelTests: XCTestCase {
         launchAtLoginService = StubLaunchAtLoginService()
     }
 
-    private func makeViewModel() -> SettingsViewModel {
+    private func makeViewModel(
+        modelService: ModelManaging = StubModelService()
+    ) -> SettingsViewModel {
         let permissionService = AccessibilityPermissionService()
         return SettingsViewModel(
             userSettings: settings,
             permissionService: permissionService,
             dictionaryService: StubDictionaryService(),
-            modelService: StubModelService(),
+            modelService: modelService,
             launchAtLoginService: launchAtLoginService
         )
     }
@@ -100,6 +102,33 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertFalse(settings.launchAtLogin)
         XCTAssertEqual(vm.lastError, "Could not update Launch at Login: failed")
     }
+
+    func testDownloadModelPollsProgressWhileStartDownloadIsInFlight() async throws {
+        let modelID = LocalModelCatalog.defaultModelID
+        let modelService = BlockingDownloadModelService()
+        let vm = makeViewModel(modelService: modelService)
+        vm.models = [
+            ModelEntry(
+                id: modelID,
+                name: "Qwen",
+                params: "3B",
+                ramGB: 3,
+                downloadSizeGB: 2.0,
+                isDefault: true,
+                downloadStatus: .notDownloaded
+            )
+        ]
+
+        let downloadTask = Task { await vm.downloadModel(modelID) }
+        await modelService.waitUntilStartDownloadCalled()
+        try await Task.sleep(nanoseconds: 1_200_000_000)
+
+        let progressCallCount = await modelService.currentProgressCallCount()
+        XCTAssertGreaterThan(progressCallCount, 0)
+
+        await modelService.finishDownload()
+        await downloadTask.value
+    }
 }
 
 private struct StubDictionaryService: DictionaryManaging {
@@ -119,6 +148,62 @@ private struct StubModelService: ModelManaging {
     }
     func cancelDownload(modelID: String) async throws {}
     func deleteModel(modelID: String) async throws {}
+}
+
+private actor BlockingDownloadModelService: ModelManaging {
+    private var didStartDownload = false
+    private var startWaiters: [CheckedContinuation<Void, Never>] = []
+    private var finishContinuation: CheckedContinuation<Void, Never>?
+    private var progressCallCount = 0
+
+    func fetchModelList() async throws -> [ModelListEntry] { [] }
+
+    func fetchModelStatus(modelID: String) async throws -> ModelStatusResponse {
+        ModelStatusResponse(modelID: modelID, status: didStartDownload ? .ready : .notDownloaded)
+    }
+
+    func startDownload(modelID: String) async throws {
+        didStartDownload = true
+        for waiter in startWaiters {
+            waiter.resume()
+        }
+        startWaiters = []
+
+        await withCheckedContinuation { continuation in
+            finishContinuation = continuation
+        }
+    }
+
+    func fetchDownloadProgress(modelID: String) async throws -> DownloadProgressResponse {
+        progressCallCount += 1
+        return DownloadProgressResponse(
+            modelID: modelID,
+            status: "downloading",
+            bytesDownloaded: 25,
+            bytesTotal: 100,
+            error: nil
+        )
+    }
+
+    func cancelDownload(modelID: String) async throws {}
+    func deleteModel(modelID: String) async throws {}
+
+    func waitUntilStartDownloadCalled() async {
+        if didStartDownload { return }
+
+        await withCheckedContinuation { continuation in
+            startWaiters.append(continuation)
+        }
+    }
+
+    func finishDownload() {
+        finishContinuation?.resume()
+        finishContinuation = nil
+    }
+
+    func currentProgressCallCount() -> Int {
+        progressCallCount
+    }
 }
 
 private final class StubLaunchAtLoginService: LaunchAtLoginManaging, @unchecked Sendable {

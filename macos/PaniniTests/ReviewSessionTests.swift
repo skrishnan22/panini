@@ -47,6 +47,21 @@ final class ReviewSessionTests: XCTestCase {
         XCTAssertEqual(session.previewText, "bad txt")
     }
 
+    func testReadyPreviewTextAppliesUTF16Offsets() throws {
+        let original = "🙂 teh"
+        let corrected = "🙂 the"
+        let changes = CorrectionDiff.computeChanges(original: original, corrected: corrected)
+        let session = ReviewSession(originalText: original)
+
+        session.transitionToReady(result: makeResult(
+            original: original,
+            corrected: corrected,
+            changes: changes
+        ))
+
+        XCTAssertEqual(session.previewText, corrected)
+    }
+
     func testEmptyStateReturnsOriginalTextAndDisallowsApply() {
         let session = ReviewSession(originalText: "Looks fine already")
 

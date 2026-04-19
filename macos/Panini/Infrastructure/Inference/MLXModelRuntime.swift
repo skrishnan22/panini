@@ -14,6 +14,7 @@ protocol LocalTextGenerating: Sendable {
 }
 
 protocol LocalModelLoading: Sendable {
+    func download(model: LocalModel) async throws
     func load(model: LocalModel) async throws
     func downloadProgress(modelID: String) async -> LocalModelDownloadProgress?
 }
@@ -40,6 +41,16 @@ actor MLXModelRuntime: LocalTextGenerating, LocalModelLoading {
 
     func load(model: LocalModel) async throws {
         _ = try await container(for: model)
+    }
+
+    func download(model: LocalModel) async throws {
+        let modelID = model.id
+        _ = try await downloadModel(
+            hub: hub,
+            configuration: ModelConfiguration(id: modelID)
+        ) { [weak self] progress in
+            Task { await self?.record(progress: progress, modelID: modelID) }
+        }
     }
 
     func generate(

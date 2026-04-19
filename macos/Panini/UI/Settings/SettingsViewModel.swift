@@ -214,6 +214,7 @@ final class SettingsViewModel: ObservableObject {
             if let index = models.firstIndex(where: { $0.id == modelID }) {
                 models[index].downloadStatus = .downloading
             }
+            startPollingProgress(modelID: modelID)
             try await modelService.startDownload(modelID: modelID)
             let status = try await modelService.fetchModelStatus(modelID: modelID)
             if let index = models.firstIndex(where: { $0.id == modelID }) {
@@ -221,10 +222,17 @@ final class SettingsViewModel: ObservableObject {
                 models[index].downloadProgress = nil
             }
             updateTotalDiskUsageLabel()
-            if status.status == .downloading {
-                startPollingProgress(modelID: modelID)
+            if status.status != .downloading {
+                stopPollingProgress()
             }
-        } catch { lastError = error.localizedDescription }
+        } catch {
+            stopPollingProgress()
+            if let index = models.firstIndex(where: { $0.id == modelID }) {
+                models[index].downloadStatus = .notDownloaded
+                models[index].downloadProgress = nil
+            }
+            lastError = error.localizedDescription
+        }
     }
 
     func cancelDownload(_ modelID: String) async {

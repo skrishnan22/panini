@@ -36,6 +36,19 @@ final class MLXLocalCorrectionProviderTests: XCTestCase {
         XCTAssertEqual(result.corrected, "I have an error.")
     }
 
+    func testSingleCorrectionAppliesUTF16Offsets() async throws {
+        let provider = MLXLocalCorrectionProvider(
+            userSettings: makeSettings(),
+            dictionaryStore: StubDictionaryStore(words: []),
+            generator: MockLocalTextGenerator(output: "🙂 the")
+        )
+
+        let result = try await provider.correct(text: "🙂 teh", mode: .review, preset: "fix")
+
+        XCTAssertEqual(result.corrected, "🙂 the")
+        XCTAssertEqual(result.changes.first?.offsetStart, 3)
+    }
+
     func testVariantsParseGeneratedOptions() async throws {
         let provider = MLXLocalCorrectionProvider(
             userSettings: makeSettings(),

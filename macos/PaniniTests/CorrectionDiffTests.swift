@@ -63,16 +63,27 @@ final class CorrectionDiffTests: XCTestCase {
         let original = "i has a error in here"
         let corrected = "I have an error in here"
         let changes = CorrectionDiff.computeChanges(original: original, corrected: corrected)
+        let nsOriginal = original as NSString
 
         for change in changes {
             XCTAssertGreaterThanOrEqual(change.offsetStart, 0)
             XCTAssertLessThanOrEqual(change.offsetStart, change.offsetEnd)
-            XCTAssertLessThanOrEqual(change.offsetEnd, original.count)
+            XCTAssertLessThanOrEqual(change.offsetEnd, nsOriginal.length)
 
-            let start = original.index(original.startIndex, offsetBy: change.offsetStart)
-            let end = original.index(original.startIndex, offsetBy: change.offsetEnd)
-            XCTAssertEqual(String(original[start..<end]), change.originalText)
+            let range = NSRange(location: change.offsetStart, length: change.offsetEnd - change.offsetStart)
+            XCTAssertEqual(nsOriginal.substring(with: range), change.originalText)
         }
+    }
+
+    func testOffsetsUseUTF16UnitsForEmojiBeforeChange() throws {
+        let changes = CorrectionDiff.computeChanges(original: "🙂 teh", corrected: "🙂 the")
+
+        let change = try XCTUnwrap(changes.first)
+        XCTAssertEqual(changes.count, 1)
+        XCTAssertEqual(change.originalText, "teh")
+        XCTAssertEqual(change.replacement, "the")
+        XCTAssertEqual(change.offsetStart, 3)
+        XCTAssertEqual(change.offsetEnd, 6)
     }
 
     func testPunctuationPreservedInReplacements() {

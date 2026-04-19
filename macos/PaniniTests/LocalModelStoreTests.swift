@@ -59,6 +59,18 @@ final class LocalModelStoreTests: XCTestCase {
         XCTAssertEqual(reloadedStatus.status, .ready)
     }
 
+    func testStartDownloadCachesModelWithoutLoadingRuntime() async throws {
+        let loader = StubLocalModelLoader()
+        let store = LocalModelStore(loader: loader, modelsDirectory: try makeTemporaryDirectory())
+
+        try await store.startDownload(modelID: LocalModelCatalog.defaultModelID)
+
+        let downloadedModelIDs = await loader.downloadedModelIDs()
+        let loadedModelIDs = await loader.loadedModelIDs()
+        XCTAssertEqual(downloadedModelIDs, [LocalModelCatalog.defaultModelID])
+        XCTAssertEqual(loadedModelIDs, [])
+    }
+
     func testFetchDownloadProgressUsesLoaderProgress() async throws {
         let loader = StubLocalModelLoader(
             progress: LocalModelDownloadProgress(bytesDownloaded: 25, bytesTotal: 100)
@@ -115,14 +127,30 @@ final class LocalModelStoreTests: XCTestCase {
 
 private actor StubLocalModelLoader: LocalModelLoading {
     private let progress: LocalModelDownloadProgress?
+    private var loadedModels: [String] = []
+    private var downloadedModels: [String] = []
 
     init(progress: LocalModelDownloadProgress? = nil) {
         self.progress = progress
     }
 
-    func load(model: LocalModel) async throws {}
+    func load(model: LocalModel) async throws {
+        loadedModels.append(model.id)
+    }
+
+    func download(model: LocalModel) async throws {
+        downloadedModels.append(model.id)
+    }
 
     func downloadProgress(modelID: String) async -> LocalModelDownloadProgress? {
         progress
+    }
+
+    func loadedModelIDs() -> [String] {
+        loadedModels
+    }
+
+    func downloadedModelIDs() -> [String] {
+        downloadedModels
     }
 }

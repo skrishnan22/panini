@@ -64,7 +64,7 @@ actor LocalModelStore: ModelManaging, LocalModelReadinessChecking {
 
         statuses[modelID] = .downloading
         do {
-            try await loader.load(model: model)
+            try await loader.download(model: model)
             try markReady(modelID: modelID)
             statuses[modelID] = .ready
         } catch {
