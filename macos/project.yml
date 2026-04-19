@@ -1,9 +1,16 @@
 name: Panini
 options:
-  xcodeVersion: "15.0"
+  xcodeVersion: "16.3"
   postGenCommand: bash scripts/downgrade_project_format.sh
   deploymentTarget:
     macOS: "14.0"
+packages:
+  mlx-swift-lm:
+    url: https://github.com/ml-explore/mlx-swift-lm.git
+    exactVersion: 2.31.3
+  swift-transformers:
+    url: https://github.com/huggingface/swift-transformers
+    exactVersion: 1.2.1
 schemes:
   Panini:
     build:
@@ -22,9 +29,27 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.panini.macos
-        SWIFT_VERSION: 5.10
+        PRODUCT_MODULE_NAME: GrammarAI
+        SWIFT_VERSION: 6.1
+        CODE_SIGN_ENTITLEMENTS: Panini/Resources/Panini.entitlements
+        ENABLE_HARDENED_RUNTIME: YES
+      configs:
+        Debug:
+          CODE_SIGN_STYLE: Automatic
+        Release:
+          CODE_SIGN_STYLE: Automatic
+          CODE_SIGN_INJECT_BASE_ENTITLEMENTS: NO
+          ENABLE_TESTABILITY: NO
+          SWIFT_OPTIMIZATION_LEVEL: -O
     info:
       path: Panini/Resources/Info.plist
+    dependencies:
+      - package: mlx-swift-lm
+        product: MLXLLM
+      - package: mlx-swift-lm
+        product: MLXLMCommon
+      - package: swift-transformers
+        product: Hub
   PaniniTests:
     type: bundle.unit-test
     platform: macOS

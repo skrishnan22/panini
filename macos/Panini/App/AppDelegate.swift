@@ -11,25 +11,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
         registerHotkeys()
 
-        Task {
-            AppLogger.server.info(
-                "App launch config host=\(self.container.config.serverHost, privacy: .public) port=\(self.container.config.serverPort) python=\(self.container.config.pythonExecutablePath, privacy: .public) cwd=\(self.container.config.serverEntryWorkingDirectory.path, privacy: .public)"
-            )
-
-            if !(await self.container.serverHealthClient.isHealthy()) {
-                try? self.container.serverProcessManager.startIfNeeded()
-            }
-            await self.container.settingsViewModel.refreshServerHealth()
+        container.settingsViewModel.onHotkeysChanged = { [weak self] in
+            self?.registerHotkeys()
         }
     }
 
-    func applicationWillTerminate(_ notification: Notification) {
-        container.serverProcessManager.stop()
-    }
-
     func openCommandPalette() {
+        let capturedEditingSession = try? container.coordinator.captureCurrentEditingSession()
         commandPaletteController.present(actions: commandPaletteActions) { [weak self] action in
-            self?.runAction(action)
+            self?.runAction(action, using: capturedEditingSession)
         }
     }
 
@@ -49,19 +39,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Task { await self.container.coordinator.undoLastAutofix() }
     }
 
-    func openSettingsWindow() {
-        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-        NSApp.activate(ignoringOtherApps: true)
-    }
-
     func terminateApp() {
         NSApp.terminate(nil)
     }
 
     private func registerHotkeys() {
-        hotkeyManager.register(bindings: GlobalHotkeyManager.defaultBindings) { [weak self] action in
+        let settings = container.userSettings
+        let bindings = HotkeyParser.parseBindings(
+            palette: settings.paletteHotkey,
+            fix: settings.fixHotkey,
+            paraphrase: settings.paraphraseHotkey,
+            professional: settings.professionalHotkey
+        )
+        hotkeyManager.register(bindings: bindings) { [weak self] action in
             guard let self else { return }
-
             switch action {
             case .palette:
                 self.openCommandPalette()
@@ -75,8 +66,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func runAction(_ action: SelectionAction) {
+    private func runAction(_ action: SelectionAction, using capturedEditingSession: TextEditingSession? = nil) {
+        let editingSession = capturedEditingSession ?? (try? container.coordinator.captureCurrentEditingSession())
         commandPaletteController.dismiss()
-        Task { await container.coordinator.runAction(action) }
+        Task { await container.coordinator.runAction(action, using: editingSession) }
     }
 }

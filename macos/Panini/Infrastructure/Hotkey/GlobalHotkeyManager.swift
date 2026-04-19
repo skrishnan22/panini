@@ -72,7 +72,7 @@ final class GlobalHotkeyManager {
         activeActionsByID.removeAll()
 
         for binding in bindings {
-            var hotKeyID = EventHotKeyID(signature: OSType(0x47524149), id: binding.action.rawValue)
+            let hotKeyID = EventHotKeyID(signature: OSType(0x47524149), id: binding.action.rawValue)
             var hotkeyRef: EventHotKeyRef?
             let status = RegisterEventHotKey(
                 binding.keyCode,

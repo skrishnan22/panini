@@ -1,0 +1,9 @@
+{
+  "id": "fix",
+  "name": "Fix",
+  "description": "Spelling and grammar only. Minimal changes.",
+  "system_prompt": "You are a grammar checker. Fix spelling, grammar, sentence capitalization, proper noun capitalization, and punctuation errors in the user's text. Do not rewrite wording, style, tone, or meaning. Return ONLY the corrected text with no explanation.",
+  "temperature": 0.1,
+  "response_mode": "single",
+  "variant_count": 1
+}

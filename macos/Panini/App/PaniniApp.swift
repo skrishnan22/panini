@@ -12,7 +12,6 @@ struct PaniniApp: App {
                 onQuickParaphrase: appDelegate.runQuickParaphrase,
                 onQuickProfessional: appDelegate.runQuickProfessional,
                 onUndoLastApply: appDelegate.undoLastApply,
-                onOpenSettings: appDelegate.openSettingsWindow,
                 onQuit: appDelegate.terminateApp
             )
         }
@@ -20,7 +19,7 @@ struct PaniniApp: App {
 
         Settings {
             SettingsView(viewModel: DIContainer.shared.settingsViewModel)
-                .frame(width: 560, height: 420)
+                .frame(width: 560, height: 480)
         }
     }
 }

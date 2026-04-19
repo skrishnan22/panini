@@ -1,15 +1,22 @@
-// swift-tools-version: 5.10
+// swift-tools-version: 6.1
 import PackageDescription
 
 let package = Package(
     name: "Panini",
     platforms: [.macOS(.v14)],
     products: [
-        .library(name: "Panini", targets: ["Panini"])
+        .library(name: "Panini", targets: ["GrammarAI"])
+    ],
+    dependencies: [
+        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", exact: "2.31.3")
     ],
     targets: [
         .target(
-            name: "Panini",
+            name: "GrammarAI",
+            dependencies: [
+                .product(name: "MLXLLM", package: "mlx-swift-lm"),
+                .product(name: "MLXLMCommon", package: "mlx-swift-lm")
+            ],
             path: "Panini",
             exclude: [
                 "App/PaniniApp.swift",
@@ -18,7 +25,7 @@ let package = Package(
         ),
         .testTarget(
             name: "PaniniTests",
-            dependencies: ["Panini"],
+            dependencies: ["GrammarAI"],
             path: "PaniniTests"
         )
     ]

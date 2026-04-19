@@ -30,7 +30,7 @@ final class AXTextWritableElementRef: AXTextWritableElement {
     }
 }
 
-final class DefaultWritableFocusedElementProvider: FocusedElementProviding {
+final class DefaultWritableFocusedElementProvider: FocusedElementProviding, @unchecked Sendable {
     static let shared = DefaultWritableFocusedElementProvider()
 
     func focusedElement() -> AXTextElement? {
@@ -84,7 +84,7 @@ final class DefaultWritableFocusedElementProvider: FocusedElementProviding {
         let result = AXUIElementCopyAttributeValue(element, name as CFString, &value)
         guard result == .success, let value else { return nil }
         guard CFGetTypeID(value) == AXUIElementGetTypeID() else { return nil }
-        return unsafeBitCast(value, to: AXUIElement.self)
+        return unsafeDowncast(value, to: AXUIElement.self)
     }
 }
 

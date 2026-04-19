@@ -1,0 +1,42 @@
+{
+  "models": [
+    {
+      "id": "gemma-4-e2b",
+      "name": "Gemma 4 E2B",
+      "params": "2B",
+      "backends": ["webgpu", "mlx"],
+      "ram_required_gb": 2,
+      "download_size_gb": 1.6,
+      "quantization": "Q4",
+      "capabilities": ["spelling", "grammar", "clarity"],
+      "default_for": "webgpu",
+      "mlx_repo": "mlx-community/gemma-4-e2b-it-4bit",
+      "prompt_format": "gemma"
+    },
+    {
+      "id": "gemma-4-e4b",
+      "name": "Gemma 4 E4B",
+      "params": "4B",
+      "backends": ["webgpu", "mlx"],
+      "ram_required_gb": 4,
+      "download_size_gb": 3.1,
+      "quantization": "Q4",
+      "capabilities": ["spelling", "grammar", "clarity", "tone", "style"],
+      "default_for": "mlx",
+      "mlx_repo": "mlx-community/gemma-4-e4b-it-4bit",
+      "prompt_format": "gemma"
+    },
+    {
+      "id": "qwen-2.5-3b",
+      "name": "Qwen 2.5 3B",
+      "params": "3B",
+      "backends": ["webgpu", "mlx"],
+      "ram_required_gb": 3,
+      "download_size_gb": 2.0,
+      "quantization": "Q4",
+      "capabilities": ["spelling", "grammar", "clarity", "style"],
+      "mlx_repo": "mlx-community/Qwen2.5-3B-Instruct-4bit",
+      "prompt_format": "chatml"
+    }
+  ]
+}

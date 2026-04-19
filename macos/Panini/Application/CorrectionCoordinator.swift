@@ -39,8 +39,6 @@ final class CorrectionCoordinator: ObservableObject {
     @Published private(set) var activeReviewSession: ReviewSession?
 
     private let config: AppConfig
-    private let serverManager: ServerControlling
-    private let healthClient: ServerHealthChecking
     private let apiClient: CorrectionServing
     private let frontmostApplicationProvider: FrontmostApplicationProviding
     private let applicationActivator: ApplicationActivating
@@ -56,8 +54,6 @@ final class CorrectionCoordinator: ObservableObject {
 
     init(
         config: AppConfig,
-        serverManager: ServerControlling,
-        healthClient: ServerHealthChecking,
         apiClient: CorrectionServing,
         frontmostApplicationProvider: FrontmostApplicationProviding,
         applicationActivator: ApplicationActivating,
@@ -69,8 +65,6 @@ final class CorrectionCoordinator: ObservableObject {
         toastPresenter: ToastPresenting
     ) {
         self.config = config
-        self.serverManager = serverManager
-        self.healthClient = healthClient
         self.apiClient = apiClient
         self.frontmostApplicationProvider = frontmostApplicationProvider
         self.applicationActivator = applicationActivator
@@ -86,7 +80,12 @@ final class CorrectionCoordinator: ObservableObject {
         await runAction(.fix)
     }
 
-    func runAction(_ action: SelectionAction) async {
+    func captureCurrentEditingSession() throws -> TextEditingSession {
+        let targetProcessIdentifier = frontmostApplicationProvider.frontmostProcessIdentifier()
+        return try textReader.captureSession(targetProcessIdentifier: targetProcessIdentifier)
+    }
+
+    func runAction(_ action: SelectionAction, using capturedEditingSession: TextEditingSession? = nil) async {
         AppLogger.coordinator.info("runAction invoked action=\(action.rawValue, privacy: .public)")
         activeReviewTask?.cancel()
         activeReviewTask = nil
@@ -98,8 +97,7 @@ final class CorrectionCoordinator: ObservableObject {
         }
 
         do {
-            let targetProcessIdentifier = frontmostApplicationProvider.frontmostProcessIdentifier()
-            let editingSession = try textReader.captureSession(targetProcessIdentifier: targetProcessIdentifier)
+            let editingSession = try capturedEditingSession ?? captureCurrentEditingSession()
             AppLogger.coordinator.info(
                 "Selection captured for action=\(action.rawValue, privacy: .public) chars=\(editingSession.selectedText.count)"
             )
@@ -126,12 +124,12 @@ final class CorrectionCoordinator: ObservableObject {
     func runAutofix() async {
         AppLogger.coordinator.info("runAutofix invoked")
         do {
-            try await ensureServerReadyOrThrow()
+            try await apiClient.prepare()
         } catch is CancellationError {
             return
         } catch {
-            AppLogger.coordinator.error("runAutofix aborted: server not ready")
-            toastPresenter?.show(message: "Panini backend is unavailable.", actionTitle: nil, action: nil)
+            AppLogger.coordinator.error("runAutofix aborted: correction service not ready")
+            toastPresenter?.show(message: error.localizedDescription, actionTitle: nil, action: nil)
             return
         }
 
@@ -253,7 +251,7 @@ final class CorrectionCoordinator: ObservableObject {
             guard let self, let session else { return }
 
             do {
-                try await self.ensureServerReadyOrThrow()
+                try await self.apiClient.prepare()
                 let response = try await self.apiClient.correct(
                     text: reviewText,
                     mode: .review,
@@ -307,32 +305,6 @@ final class CorrectionCoordinator: ObservableObject {
         guard activeReviewRequestID == requestID else { return }
         activeReviewTask = nil
         activeReviewRequestID = nil
-    }
-
-    private func ensureServerReadyOrThrow() async throws {
-        if await healthClient.isHealthy() {
-            AppLogger.coordinator.debug("Server already healthy; skipping process start")
-            return
-        }
-
-        do {
-            try serverManager.startIfNeeded()
-        } catch {
-            AppLogger.coordinator.error("Server start failed: \(error.localizedDescription, privacy: .public)")
-            throw PaniniError.serverUnavailable
-        }
-
-        for _ in 0 ..< 8 {
-            try Task.checkCancellation()
-            if await healthClient.isHealthy() {
-                AppLogger.coordinator.debug("Server reported healthy")
-                return
-            }
-            try await Task.sleep(for: .milliseconds(200))
-        }
-
-        AppLogger.coordinator.error("Server health checks timed out")
-        throw PaniniError.serverUnavailable
     }
 
     private func applyText(_ text: String, session: TextEditingSession?) throws {

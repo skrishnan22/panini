@@ -5,9 +5,7 @@ final class DIContainer {
     static let shared = DIContainer()
 
     let config: AppConfig
-    let serverProcessManager: ServerProcessManager
-    let serverHealthClient: ServerHealthClient
-    let correctionAPIClient: CorrectionAPIClient
+    let userSettings: UserSettings
     let accessibilityPermissionService: AccessibilityPermissionService
     let focusedTextReader: FocusedTextReader
     let focusedTextWriter: FocusedTextWriter
@@ -15,7 +13,10 @@ final class DIContainer {
     let undoBuffer: UndoBuffer
     let reviewPanelController: ReviewPanelController
     let toastController: ToastController
-    let dictionaryService: DictionaryService
+    let dictionaryService: DictionaryManaging
+    let modelManagementService: ModelManaging
+    let mlxRuntime: MLXModelRuntime
+    let correctionService: CorrectionServing
     let coordinator: CorrectionCoordinator
     let settingsViewModel: SettingsViewModel
 
@@ -23,14 +24,8 @@ final class DIContainer {
         let config = AppConfig()
         self.config = config
 
-        let processManager = ServerProcessManager(config: config)
-        self.serverProcessManager = processManager
-
-        let healthClient = ServerHealthClient(baseURL: config.serverBaseURL, timeout: config.serverHealthTimeout)
-        self.serverHealthClient = healthClient
-
-        let apiClient = CorrectionAPIClient(baseURL: config.serverBaseURL, timeout: config.requestTimeout)
-        self.correctionAPIClient = apiClient
+        let userSettings = UserSettings()
+        self.userSettings = userSettings
 
         let permissionService = AccessibilityPermissionService()
         self.accessibilityPermissionService = permissionService
@@ -56,14 +51,32 @@ final class DIContainer {
         let toast = ToastController()
         self.toastController = toast
 
-        let dictionaryService = DictionaryService(baseURL: config.serverBaseURL, timeout: config.requestTimeout)
+        let dictionaryService = LocalDictionaryStore()
         self.dictionaryService = dictionaryService
+
+        let modelsDirectory = try? PaniniDirectories.modelsDirectory()
+
+        let mlxRuntime = MLXModelRuntime(modelsDirectory: modelsDirectory)
+        self.mlxRuntime = mlxRuntime
+
+        let modelService = LocalModelStore(loader: mlxRuntime, modelsDirectory: modelsDirectory)
+        self.modelManagementService = modelService
+
+        let localProvider = MLXLocalCorrectionProvider(
+            userSettings: userSettings,
+            dictionaryStore: dictionaryService,
+            generator: mlxRuntime,
+            readinessChecker: modelService
+        )
+        let correctionService = RoutingCorrectionService(
+            userSettings: userSettings,
+            localProvider: localProvider
+        )
+        self.correctionService = correctionService
 
         let coordinator = CorrectionCoordinator(
             config: config,
-            serverManager: processManager,
-            healthClient: healthClient,
-            apiClient: apiClient,
+            apiClient: correctionService,
             frontmostApplicationProvider: frontmostApplicationProvider,
             applicationActivator: applicationActivator,
             textReader: reader,
@@ -86,11 +99,13 @@ final class DIContainer {
         }
 
         let settingsViewModel = SettingsViewModel(
-            config: config,
-            healthClient: healthClient,
+            userSettings: userSettings,
             permissionService: permissionService,
-            dictionaryService: dictionaryService
+            dictionaryService: dictionaryService,
+            modelService: modelService
         )
         self.settingsViewModel = settingsViewModel
+
+        settingsViewModel.onHotkeysChanged = {}  // Wired in AppDelegate
     }
 }

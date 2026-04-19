@@ -32,7 +32,7 @@ final class AXTextElementRef: AXTextElement {
     }
 }
 
-final class DefaultFocusedElementProvider: FocusedElementProviding {
+final class DefaultFocusedElementProvider: FocusedElementProviding, @unchecked Sendable {
     static let shared = DefaultFocusedElementProvider()
 
     func focusedElement() -> AXTextElement? {
@@ -86,7 +86,7 @@ final class DefaultFocusedElementProvider: FocusedElementProviding {
         let result = AXUIElementCopyAttributeValue(element, name as CFString, &value)
         guard result == .success, let value else { return nil }
         guard CFGetTypeID(value) == AXUIElementGetTypeID() else { return nil }
-        return unsafeBitCast(value, to: AXUIElement.self)
+        return unsafeDowncast(value, to: AXUIElement.self)
     }
 }
 
@@ -96,10 +96,6 @@ final class FocusedTextReader: TextReader {
         let range: CFRange?
         let fullValue: String?
         let readStrategy: AXReadStrategy
-    }
-
-    private struct ClipboardSnapshot {
-        let plainText: String?
     }
 
     private let provider: FocusedElementProviding
@@ -148,7 +144,7 @@ final class FocusedTextReader: TextReader {
 
     private func tryClipboardSelectionFallback() -> String? {
         let pasteboard = NSPasteboard.general
-        let snapshot = captureSnapshot(from: pasteboard)
+        let snapshot = PasteboardSnapshot.capture(from: pasteboard)
         let sentinel = "__PANINI_COPY_SENTINEL__\(UUID().uuidString)"
 
         do {
@@ -158,7 +154,7 @@ final class FocusedTextReader: TextReader {
             try simulateCopyShortcut()
             let selection = pollPasteboardSelection(from: pasteboard, sentinel: sentinel)
 
-            restoreSnapshot(snapshot, to: pasteboard)
+            snapshot.restore(to: pasteboard)
 
             guard let selection, !selection.isEmpty, selection != sentinel else {
                 AppLogger.accessibility.error("Clipboard fallback did not capture a new selection.")
@@ -168,7 +164,7 @@ final class FocusedTextReader: TextReader {
             return selection
         } catch {
             AppLogger.accessibility.error("Clipboard selection fallback failed: \(error.localizedDescription, privacy: .public)")
-            restoreSnapshot(snapshot, to: pasteboard)
+            snapshot.restore(to: pasteboard)
             return nil
         }
     }
@@ -327,14 +323,4 @@ final class FocusedTextReader: TextReader {
         up.post(tap: .cghidEventTap)
     }
 
-    private func captureSnapshot(from pasteboard: NSPasteboard) -> ClipboardSnapshot {
-        ClipboardSnapshot(plainText: pasteboard.string(forType: .string))
-    }
-
-    private func restoreSnapshot(_ snapshot: ClipboardSnapshot, to pasteboard: NSPasteboard) {
-        pasteboard.clearContents()
-        if let plainText = snapshot.plainText {
-            pasteboard.setString(plainText, forType: .string)
-        }
-    }
 }
