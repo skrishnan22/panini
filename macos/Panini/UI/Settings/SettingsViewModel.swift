@@ -27,12 +27,10 @@ final class SettingsViewModel: ObservableObject {
         didSet { userSettings.defaultPreset = selectedPreset }
     }
     @Published var backendChoice: BackendChoice {
+    @Published var backendChoice: BackendChoice {
         didSet {
-            let value = backendChoice
-            Task { [weak self] in
-                self?.userSettings.backendChoice = value
-                self?.onBackendOrModelChanged?()
-            }
+            userSettings.backendChoice = backendChoice
+            onBackendOrModelChanged?()
         }
     }
     @Published var launchAtLogin: Bool {
